@@ -102,6 +102,12 @@ with tab_market:
                         title="Market Performance by Sector"
                     )
                     st.plotly_chart(fig, use_container_width=True)
+                    st.markdown("""
+                    **Heatmap Legend:**
+                    *   🟩 **Green**: Positive Change (Price Up)
+                    *   🟥 **Red**: Negative Change (Price Down)
+                    *   **Box Size**: Represents Stock Price
+                    """)
                 else:
                     st.error("Failed to load market data. Check internet connection or API limits.")
         else:
@@ -132,6 +138,15 @@ with tab_scanner:
             df = df[['symbol', 'price', 'signal_date', 'trend_prediction', 'timestamp']]
             df.columns = ['Symbol', 'Price (INR)', 'Signal Date', 'Trend', 'Detected At']
             
+            # Convert Timestamp to IST
+            try:
+                df['Detected At'] = pd.to_datetime(df['Detected At'])
+                # Assuming DB saves in UTC (default), convert to IST (UTC+5:30)
+                df['Detected At'] = df['Detected At'] + pd.Timedelta(hours=5, minutes=30)
+                df['Detected At'] = df['Detected At'].dt.strftime('%Y-%m-%d %H:%M:%S')
+            except Exception as e:
+                pass # Keep original if conversion fails
+
             # Apply Filter
             if trend_filter != "All":
                 df = df[df['Trend'].str.contains(trend_filter, na=False)]
