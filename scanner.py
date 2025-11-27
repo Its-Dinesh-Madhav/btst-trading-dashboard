@@ -16,42 +16,58 @@ def process_stock(symbol):
     """
     try:
     try:
-        # Fetch data (Intraday 15m for accurate timing)
+        # 1. Fetch Daily Data (The "Pine Script" Logic)
         ticker = yf.Ticker(symbol)
-        # 5 days of 15m data is enough for the strategy (requires ~20 candles)
-        df = ticker.history(period="5d", interval="15m")
+        df_daily = ticker.history(period="6mo", interval="1d")
         
-        if df.empty:
+        if df_daily.empty:
             return None
             
         # Clean column names
-        df.columns = [c.lower() for c in df.columns]
+        df_daily.columns = [c.lower() for c in df_daily.columns]
         
-        # Apply Strategy (Intraday)
-        from strategy import find_intraday_signal
-        signal = find_intraday_signal(df)
+        # 2. Apply Strategy on Daily Frame
+        from strategy import calculate_strategy_indicators
+        df_daily = calculate_strategy_indicators(df_daily)
         
-        if signal:
-            price = signal['price']
-            date = signal['date']
-            timestamp = signal['timestamp']
+        # Check Buy Condition manually to get the TSL level
+        latest = df_daily.iloc[-1]
+        prev = df_daily.iloc[-2]
+        
+        # Condition: Crossover (Close crosses above TSL)
+        crossover = (prev['close'] < prev['tsl']) and (latest['close'] > latest['tsl'])
+        
+        if crossover:
+            price = latest['close']
+            date = latest.name.strftime('%Y-%m-%d')
+            daily_tsl = latest['tsl']
             
-            # Calculate Trend Prediction (still useful to know general trend)
-            # We can fetch daily data separately if needed, or just use intraday trend
-            # For speed, let's use the intraday trend prediction from analysis
-            tech_data = get_technical_analysis(symbol, df=df)
+            # 3. Find Exact Trigger Time using Intraday Data
+            # We want the time when Price > Daily TSL first happened today
+            timestamp = f"{date} 09:15:00" # Default to market open if not found
+            
+            try:
+                # Fetch today's 15m data
+                df_intra = ticker.history(period="5d", interval="15m")
+                if not df_intra.empty:
+                    # Filter for today
+                    df_intra.columns = [c.lower() for c in df_intra.columns]
+                    today_str = latest.name.strftime('%Y-%m-%d')
+                    df_today = df_intra[df_intra.index.strftime('%Y-%m-%d') == today_str]
+                    
+                    # Find first candle > Daily TSL
+                    for idx, row in df_today.iterrows():
+                        if row['close'] > daily_tsl:
+                            timestamp = idx.strftime('%Y-%m-%d %H:%M:%S')
+                            break
+            except Exception:
+                pass # Fallback to default timestamp
+            
+            # Calculate Trend Prediction
+            tech_data = get_technical_analysis(symbol, df=df_daily)
             trend_pred = tech_data['prediction'] if tech_data else "Neutral"
             
             # Save to DB
-            # Note: We pass the specific 'timestamp' found by the strategy
-            # We need to update add_signal to accept a specific timestamp if we want to override CURRENT_TIMESTAMP
-            # But for now, we can just save it. The dashboard uses 'timestamp' column which is auto-generated.
-            # Wait, the user wants the "Trigger Time" to be shown.
-            # The dashboard uses the 'timestamp' column from the DB.
-            # So we must pass this 'timestamp' to the DB.
-            
-            # We need to modify add_signal to accept an explicit timestamp
-            # For now, let's just pass it and I will update database.py next.
             add_signal(symbol, price, date, trend_pred, timestamp=timestamp)
             
             return {
