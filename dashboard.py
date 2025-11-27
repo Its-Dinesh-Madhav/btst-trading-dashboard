@@ -136,14 +136,14 @@ with tab_scanner:
             df = pd.DataFrame(signals)
             # Reorder columns
             df = df[['symbol', 'price', 'signal_date', 'trend_prediction', 'timestamp']]
-            df.columns = ['Symbol', 'Price (INR)', 'Signal Date', 'Trend', 'Detected At']
+            df.columns = ['Symbol', 'Price (INR)', 'Signal Date', 'Trend', 'Scanned At']
             
             # Convert Timestamp to IST
             try:
-                df['Detected At'] = pd.to_datetime(df['Detected At'])
+                df['Scanned At'] = pd.to_datetime(df['Scanned At'])
                 # Assuming DB saves in UTC (default), convert to IST (UTC+5:30)
-                df['Detected At'] = df['Detected At'] + pd.Timedelta(hours=5, minutes=30)
-                df['Detected At'] = df['Detected At'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                df['Scanned At'] = df['Scanned At'] + pd.Timedelta(hours=5, minutes=30)
+                df['Scanned At'] = df['Scanned At'].dt.strftime('%Y-%m-%d %H:%M:%S')
             except Exception as e:
                 pass # Keep original if conversion fails
 
