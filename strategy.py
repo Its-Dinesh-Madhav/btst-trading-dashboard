@@ -77,3 +77,46 @@ def check_buy_signal(df):
         return True
 
     return False
+
+def find_intraday_signal(df):
+    """
+    Scans the DataFrame (intraday) to find if a buy signal occurred recently (e.g., today).
+    Returns a dict with signal details if found, else None.
+    """
+    if df is None or df.empty or len(df) < 20:
+        return None
+
+    # Calculate indicators
+    df = calculate_strategy_indicators(df)
+    
+    # Check specifically for signals in the last 'N' candles (e.g., last 1 day ~ 25 candles for 15m)
+    # We iterate backwards to find the *latest* signal, or forwards for *first*?
+    # User wants "time when signal triggered". If triggered at 10am and still valid, show 10am.
+    
+    # Get today's date from the last candle
+    last_date = df.index[-1].date()
+    
+    # Filter for today's candles
+    today_df = df[df.index.date == last_date]
+    
+    if today_df.empty:
+        return None
+        
+    # We need to look at the transition from the candle *before* the current one
+    # So we iterate through today's indices
+    
+    for i in range(len(df) - len(today_df), len(df)):
+        curr = df.iloc[i]
+        prev = df.iloc[i-1]
+        
+        # Condition: Crossover (Close crosses above TSL)
+        crossover = (prev['close'] < prev['tsl']) and (curr['close'] > curr['tsl'])
+        
+        if crossover:
+            return {
+                'price': curr['close'],
+                'date': curr.name.strftime('%Y-%m-%d'),
+                'timestamp': curr.name.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            
+    return None

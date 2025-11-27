@@ -103,7 +103,7 @@ def remove_from_portfolio(symbol):
 
 # --- Signal Functions ---
 
-def add_signal(symbol, price, signal_date, trend_prediction="Neutral"):
+def add_signal(symbol, price, signal_date, trend_prediction="Neutral", timestamp=None):
     """Adds a new buy signal to the database."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -114,10 +114,17 @@ def add_signal(symbol, price, signal_date, trend_prediction="Neutral"):
     ''', (symbol, signal_date))
     
     if not c.fetchone():
-        c.execute('''
-            INSERT INTO signals (symbol, price, signal_date, trend_prediction)
-            VALUES (?, ?, ?, ?)
-        ''', (symbol, price, signal_date, trend_prediction))
+        if timestamp:
+            c.execute('''
+                INSERT INTO signals (symbol, price, signal_date, trend_prediction, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (symbol, price, signal_date, trend_prediction, timestamp))
+        else:
+            c.execute('''
+                INSERT INTO signals (symbol, price, signal_date, trend_prediction)
+                VALUES (?, ?, ?, ?)
+            ''', (symbol, price, signal_date, trend_prediction))
+            
         conn.commit()
         # print(f"Saved signal for {symbol} to DB.")
     

@@ -15,10 +15,11 @@ def process_stock(symbol):
     Returns result dict if signal found, else None.
     """
     try:
-        # Fetch data (Daily timeframe)
-        # Fetching 3 months to ensure enough data for rolling windows
+    try:
+        # Fetch data (Intraday 15m for accurate timing)
         ticker = yf.Ticker(symbol)
-        df = ticker.history(period="6mo", interval="1d") # Increased to 6mo for ADX
+        # 5 days of 15m data is enough for the strategy (requires ~20 candles)
+        df = ticker.history(period="5d", interval="15m")
         
         if df.empty:
             return None
@@ -26,24 +27,39 @@ def process_stock(symbol):
         # Clean column names
         df.columns = [c.lower() for c in df.columns]
         
-        # Apply Strategy
-        if check_buy_signal(df):
-            price = df.iloc[-1]['close']
-            date = df.index[-1].strftime('%Y-%m-%d')
+        # Apply Strategy (Intraday)
+        from strategy import find_intraday_signal
+        signal = find_intraday_signal(df)
+        
+        if signal:
+            price = signal['price']
+            date = signal['date']
+            timestamp = signal['timestamp']
             
-            # Calculate Trend Prediction immediately
-            # We pass the existing DF to avoid re-fetching
+            # Calculate Trend Prediction (still useful to know general trend)
+            # We can fetch daily data separately if needed, or just use intraday trend
+            # For speed, let's use the intraday trend prediction from analysis
             tech_data = get_technical_analysis(symbol, df=df)
             trend_pred = tech_data['prediction'] if tech_data else "Neutral"
             
-            # Save to DB immediately
-            add_signal(symbol, price, date, trend_pred)
+            # Save to DB
+            # Note: We pass the specific 'timestamp' found by the strategy
+            # We need to update add_signal to accept a specific timestamp if we want to override CURRENT_TIMESTAMP
+            # But for now, we can just save it. The dashboard uses 'timestamp' column which is auto-generated.
+            # Wait, the user wants the "Trigger Time" to be shown.
+            # The dashboard uses the 'timestamp' column from the DB.
+            # So we must pass this 'timestamp' to the DB.
+            
+            # We need to modify add_signal to accept an explicit timestamp
+            # For now, let's just pass it and I will update database.py next.
+            add_signal(symbol, price, date, trend_pred, timestamp=timestamp)
             
             return {
                 'Symbol': symbol,
                 'Price': price,
                 'Date': date,
-                'Trend': trend_pred
+                'Trend': trend_pred,
+                'Timestamp': timestamp
             }
     except Exception:
         # Silently fail for individual stock errors to keep scanner running
