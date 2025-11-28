@@ -154,5 +154,13 @@ def clear_db():
     conn.commit()
     conn.close()
 
+def remove_signal(symbol):
+    """Removes a signal from the database (e.g., if Sell signal triggered)."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('DELETE FROM signals WHERE symbol = ?', (symbol,))
+    conn.commit()
+    conn.close()
+
 # Initialize on module load
 init_db()

@@ -1,8 +1,9 @@
 import yfinance as yf
 import pandas as pd
 from stock_list import load_stock_list
-from strategy import check_buy_signal
-from database import add_signal
+from stock_list import load_stock_list
+from strategy import check_buy_signal, check_sell_signal
+from database import add_signal, remove_signal
 from analysis import get_technical_analysis
 import time
 from datetime import datetime
@@ -36,6 +37,13 @@ def process_stock(symbol):
         
         # Condition: Crossover (Close crosses above TSL)
         crossover = (prev['close'] < prev['tsl']) and (latest['close'] > latest['tsl'])
+        
+        # Condition: Crossunder (Close crosses below TSL) -> SELL
+        crossunder = (prev['close'] > prev['tsl']) and (latest['close'] < latest['tsl'])
+        
+        if crossunder:
+            remove_signal(symbol)
+            return {'Symbol': symbol, 'Status': 'Removed (Sell Signal)'}
         
         if crossover:
             price = latest['close']

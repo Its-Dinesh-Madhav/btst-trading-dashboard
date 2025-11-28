@@ -151,17 +151,41 @@ with tab_scanner:
             if trend_filter != "All":
                 df = df[df['Trend'].str.contains(trend_filter, na=False)]
             
-            # Display metrics
-            c1, c2 = st.columns(2)
-            c1.metric("Total Signals", len(df))
-            if not df.empty:
-                c2.metric("Latest", df.iloc[0]['Symbol'])
-            
             # Sort by Scanned At (Descending) to show recent first
             try:
                 df = df.sort_values(by='Scanned At', ascending=False)
             except Exception:
                 pass
+
+            # --- Date Filter ---
+            time_filter = st.sidebar.selectbox(
+                "Filter by Time",
+                ["All", "Today", "Yesterday", "Last 7 Days"]
+            )
+            
+            if time_filter != "All":
+                try:
+                    df['dt'] = pd.to_datetime(df['Scanned At'])
+                    today = pd.Timestamp.now().normalize()
+                    
+                    if time_filter == "Today":
+                        df = df[df['dt'].dt.date == today.date()]
+                    elif time_filter == "Yesterday":
+                        yesterday = today - pd.Timedelta(days=1)
+                        df = df[df['dt'].dt.date == yesterday.date()]
+                    elif time_filter == "Last 7 Days":
+                        last_week = today - pd.Timedelta(days=7)
+                        df = df[df['dt'] >= last_week]
+                        
+                    df = df.drop(columns=['dt'])
+                except Exception:
+                    pass
+
+            # Display metrics
+            c1, c2 = st.columns(2)
+            c1.metric("Total Signals", len(df))
+            if not df.empty:
+                c2.metric("Latest", df.iloc[0]['Symbol'])
 
             # Display Table with Selection
             event = st.dataframe(
@@ -173,23 +197,30 @@ with tab_scanner:
                 hide_index=True
             )
             
-            # Get Selected Stock
-            if len(event.selection.rows) > 0:
+            # Get Selected Stock (Priority: Search > Table Selection)
+            selected_stock = None
+            
+            # Search Bar
+            search_query = st.text_input("🔍 Search for any stock (e.g., RELIANCE.NS)", placeholder="Enter symbol...").strip().upper()
+            
+            if search_query:
+                # Validate symbol format (simple check)
+                if not (search_query.endswith(".NS") or search_query.endswith(".BO")):
+                    search_query += ".NS" # Default to NSE
+                selected_stock = search_query
+            elif len(event.selection.rows) > 0:
                 selected_index = event.selection.rows[0]
                 selected_stock = df.iloc[selected_index]['Symbol']
-            else:
-                selected_stock = None
         else:
             st.info("No signals found yet. Click 'Run Full Scan' to start.")
             selected_stock = None
             
-    # Add Clear DB Button to Sidebar
-    if st.sidebar.button("🗑️ Clear Signal History"):
-        from database import clear_db
-        clear_db()
-        st.sidebar.success("Database cleared!")
-        time.sleep(1)
-        st.rerun()
+            # Allow search even if no signals
+            search_query = st.text_input("🔍 Search for any stock (e.g., RELIANCE.NS)", placeholder="Enter symbol...").strip().upper()
+            if search_query:
+                if not (search_query.endswith(".NS") or search_query.endswith(".BO")):
+                    search_query += ".NS"
+                selected_stock = search_query
 
     with col_detail:
         st.subheader("🤖 AI Analysis & Prediction")

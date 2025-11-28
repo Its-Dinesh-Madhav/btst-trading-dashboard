@@ -77,3 +77,26 @@ def check_buy_signal(df):
         return True
 
     return False
+
+def check_sell_signal(df):
+    """
+    Analyzes the DataFrame and returns True if a Sell signal is detected.
+    """
+    if df is None or df.empty or len(df) < 20:
+        return False
+
+    # Calculate indicators (if not already done, but usually passed df has them or we recalc)
+    # To be safe, recalc if columns missing, but usually we pass fresh df
+    if 'tsl' not in df.columns:
+        df = calculate_strategy_indicators(df)
+    
+    latest = df.iloc[-1]
+    prev = df.iloc[-2]
+    
+    # Condition: Crossunder (Close crosses below TSL)
+    crossunder = (prev['close'] > prev['tsl']) and (latest['close'] < latest['tsl'])
+    
+    if crossunder:
+        return True
+
+    return False
