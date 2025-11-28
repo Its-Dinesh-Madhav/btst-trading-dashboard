@@ -15,7 +15,8 @@ def init_db():
             price REAL NOT NULL,
             signal_date TEXT NOT NULL,
             trend_prediction TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            signal_strength TEXT DEFAULT 'Standard'
         )
     ''')
     conn.commit()
@@ -44,13 +45,19 @@ def init_portfolio_db():
     conn.close()
 
 def migrate_db():
-    """Adds trend_prediction column if it doesn't exist."""
+    """Adds missing columns if they don't exist."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+    # Add trend_prediction column
     try:
         c.execute("ALTER TABLE signals ADD COLUMN trend_prediction TEXT")
         conn.commit()
-        # print("Migrated DB: Added trend_prediction column.")
+    except sqlite3.OperationalError:
+        pass
+    # Add signal_strength column
+    try:
+        c.execute("ALTER TABLE signals ADD COLUMN signal_strength TEXT DEFAULT 'Standard'")
+        conn.commit()
     except sqlite3.OperationalError:
         pass
     conn.close()
@@ -103,8 +110,8 @@ def remove_from_portfolio(symbol):
 
 # --- Signal Functions ---
 
-def add_signal(symbol, price, signal_date, trend_prediction="Neutral", timestamp=None):
-    """Adds a new buy signal to the database."""
+def add_signal(symbol, price, signal_date, trend_prediction="Neutral", timestamp=None, signal_strength="Standard"):
+    """Adds a new buy signal to the database, including signal strength."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     # Check if signal already exists for today to avoid duplicates
@@ -116,14 +123,14 @@ def add_signal(symbol, price, signal_date, trend_prediction="Neutral", timestamp
     if not c.fetchone():
         if timestamp:
             c.execute('''
-                INSERT INTO signals (symbol, price, signal_date, trend_prediction, timestamp)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (symbol, price, signal_date, trend_prediction, timestamp))
+                INSERT INTO signals (symbol, price, signal_date, trend_prediction, timestamp, signal_strength)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (symbol, price, signal_date, trend_prediction, timestamp, signal_strength))
         else:
             c.execute('''
-                INSERT INTO signals (symbol, price, signal_date, trend_prediction)
-                VALUES (?, ?, ?, ?)
-            ''', (symbol, price, signal_date, trend_prediction))
+                INSERT INTO signals (symbol, price, signal_date, trend_prediction, signal_strength)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (symbol, price, signal_date, trend_prediction, signal_strength))
             
         conn.commit()
         # print(f"Saved signal for {symbol} to DB.")
@@ -137,7 +144,7 @@ def get_recent_signals(limit=50):
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     c.execute('''
-        SELECT symbol, price, signal_date, trend_prediction, timestamp 
+        SELECT symbol, price, signal_date, trend_prediction, timestamp, signal_strength 
         FROM signals 
         ORDER BY timestamp DESC 
         LIMIT ?

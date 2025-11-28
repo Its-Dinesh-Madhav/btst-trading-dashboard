@@ -99,8 +99,31 @@ with tab_sniper:
     signals = get_recent_signals(limit=500)
     if signals:
         df_s = pd.DataFrame(signals)
-        df_s = df_s[['symbol', 'price', 'signal_date', 'trend_prediction', 'timestamp', 'signal_strength']]
-        df_s.columns = ['Symbol', 'Price (INR)', 'Signal Date', 'Trend', 'Scanned At', 'Strength']
+        
+        # Define expected columns and their display names
+        expected_cols = {
+            'symbol': 'Symbol',
+            'price': 'Price (INR)',
+            'signal_date': 'Signal Date',
+            'trend_prediction': 'Trend',
+            'timestamp': 'Scanned At',
+            'signal_strength': 'Strength'
+        }
+        
+        # Ensure all expected columns exist, add with default if missing
+        for col_db, col_display in expected_cols.items():
+            if col_db not in df_s.columns:
+                df_s[col_db] = 'N/A' # Default value for missing columns
+        
+        # Select and rename columns
+        df_s = df_s[[col for col in expected_cols.keys() if col in df_s.columns]]
+        df_s.columns = [expected_cols[col] for col in df_s.columns]
+        
+        # Handle missing signal_strength (backward compatibility) if it was added as 'N/A'
+        if 'Strength' in df_s.columns:
+            df_s['Strength'] = df_s['Strength'].replace('N/A', 'Standard')
+        else:
+            df_s['Strength'] = 'Standard' # Add if still missing after initial check
         
         # Filter for Sniper
         df_sniper = df_s[df_s['Strength'].str.contains("Sniper", na=False)]
@@ -174,6 +197,11 @@ with tab_scanner:
 
         if signals:
             df = pd.DataFrame(signals)
+            
+            # Handle missing signal_strength (backward compatibility)
+            if 'signal_strength' not in df.columns:
+                df['signal_strength'] = 'Standard'
+                
             # Reorder columns
             df = df[['symbol', 'price', 'signal_date', 'trend_prediction', 'timestamp', 'signal_strength']]
             df.columns = ['Symbol', 'Price (INR)', 'Signal Date', 'Trend', 'Scanned At', 'Strength']
