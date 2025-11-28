@@ -157,13 +157,20 @@ with tab_scanner:
             if not df.empty:
                 c2.metric("Latest", df.iloc[0]['Symbol'])
             
+            # Sort by Scanned At (Descending) to show recent first
+            try:
+                df = df.sort_values(by='Scanned At', ascending=False)
+            except Exception:
+                pass
+
             # Display Table with Selection
             event = st.dataframe(
                 df,
                 use_container_width=True,
                 height=400,
                 on_select="rerun",
-                selection_mode="single-row"
+                selection_mode="single-row",
+                hide_index=True
             )
             
             # Get Selected Stock
@@ -175,6 +182,14 @@ with tab_scanner:
         else:
             st.info("No signals found yet. Click 'Run Full Scan' to start.")
             selected_stock = None
+            
+    # Add Clear DB Button to Sidebar
+    if st.sidebar.button("🗑️ Clear Signal History"):
+        from database import clear_db
+        clear_db()
+        st.sidebar.success("Database cleared!")
+        time.sleep(1)
+        st.rerun()
 
     with col_detail:
         st.subheader("🤖 AI Analysis & Prediction")
