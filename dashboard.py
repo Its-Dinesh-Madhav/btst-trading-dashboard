@@ -48,7 +48,8 @@ auto_refresh = st.sidebar.checkbox("Auto-refresh Data", value=True)
 # Main Content
 # Main Content
 # Main Content
-tab_scanner, tab_watchlist, tab_market, tab_pred = st.tabs(["📡 Scanner", "⭐ Watchlist", "🌍 Market Overview", "🔮 Tomorrow's Prediction"])
+# Main Content
+tab_scanner, tab_sniper, tab_watchlist, tab_market, tab_pred = st.tabs(["📡 Scanner", "🎯 Sniper Signals", "⭐ Watchlist", "🌍 Market Overview", "🔮 Tomorrow's Prediction"])
 
 with tab_pred:
     st.subheader("🚀 BTST (Buy Today, Sell Tomorrow) Predictor")
@@ -84,6 +85,39 @@ with tab_pred:
                 st.warning("No stocks met the criteria. Market might be very weak.")
     else:
         st.info("Click the button to scan for stocks likely to give profits tomorrow.")
+
+with tab_sniper:
+    st.subheader("🎯 Sniper Signals (High Accuracy)")
+    st.markdown("""
+    **Criteria:**
+    1.  ✅ **Trend:** Price > 200 EMA (Long-term Uptrend)
+    2.  ✅ **Momentum:** RSI between 40 and 70
+    3.  ✅ **Volume:** > 1.5x Average Volume
+    """)
+    
+    # Reuse the same data fetching logic but filter for Sniper
+    signals = get_recent_signals(limit=500)
+    if signals:
+        df_s = pd.DataFrame(signals)
+        df_s = df_s[['symbol', 'price', 'signal_date', 'trend_prediction', 'timestamp', 'signal_strength']]
+        df_s.columns = ['Symbol', 'Price (INR)', 'Signal Date', 'Trend', 'Scanned At', 'Strength']
+        
+        # Filter for Sniper
+        df_sniper = df_s[df_s['Strength'].str.contains("Sniper", na=False)]
+        
+        if not df_sniper.empty:
+            # Convert Time
+            try:
+                df_sniper['Scanned At'] = pd.to_datetime(df_sniper['Scanned At'])
+                df_sniper['Scanned At'] = df_sniper['Scanned At'] + pd.Timedelta(hours=5, minutes=30)
+                df_sniper['Scanned At'] = df_sniper['Scanned At'].dt.strftime('%Y-%m-%d %H:%M:%S')
+            except: pass
+            
+            st.dataframe(df_sniper, use_container_width=True, hide_index=True)
+        else:
+            st.info("No 'Sniper' signals found yet. These are rare but high probability.")
+    else:
+        st.info("No signals found.")
 
 with tab_market:
     col_m1, col_m2 = st.columns([2, 1])
@@ -134,16 +168,15 @@ with tab_scanner:
     col_main, col_detail = st.columns([1, 1])
 
     with col_main:
-        st.subheader("Live Buy Signals")
-        # Fetch data
+        st.subheader("Live Buy Signals (Standard)")
         # Fetch data
         signals = get_recent_signals(limit=500)
 
         if signals:
             df = pd.DataFrame(signals)
             # Reorder columns
-            df = df[['symbol', 'price', 'signal_date', 'trend_prediction', 'timestamp']]
-            df.columns = ['Symbol', 'Price (INR)', 'Signal Date', 'Trend', 'Scanned At']
+            df = df[['symbol', 'price', 'signal_date', 'trend_prediction', 'timestamp', 'signal_strength']]
+            df.columns = ['Symbol', 'Price (INR)', 'Signal Date', 'Trend', 'Scanned At', 'Strength']
             
             # Convert Timestamp to IST
             try:
@@ -154,7 +187,7 @@ with tab_scanner:
             except Exception as e:
                 pass # Keep original if conversion fails
 
-            # Apply Filter
+            # Apply Trend Filter
             if trend_filter != "All":
                 df = df[df['Trend'].str.contains(trend_filter, na=False)]
             
