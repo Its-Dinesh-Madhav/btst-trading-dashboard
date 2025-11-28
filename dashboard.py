@@ -200,13 +200,24 @@ with tab_scanner:
             # Get Selected Stock (Priority: Search > Table Selection)
             selected_stock = None
             
-            # Search Bar
-            search_query = st.text_input("🔍 Search for any stock (e.g., RELIANCE.NS)", placeholder="Enter symbol...").strip().upper()
+            # --- Autocomplete Search ---
+            # Cache the stock list to avoid re-fetching on every rerun
+            @st.cache_data
+            def get_all_symbols():
+                return load_stock_list()
+            
+            all_symbols = get_all_symbols()
+            # Add a placeholder option
+            search_options = [""] + all_symbols
+            
+            search_query = st.selectbox(
+                "🔍 Search for any stock (Type to search)",
+                options=search_options,
+                index=0,
+                placeholder="Select or type symbol..."
+            )
             
             if search_query:
-                # Validate symbol format (simple check)
-                if not (search_query.endswith(".NS") or search_query.endswith(".BO")):
-                    search_query += ".NS" # Default to NSE
                 selected_stock = search_query
             elif len(event.selection.rows) > 0:
                 selected_index = event.selection.rows[0]
@@ -216,10 +227,21 @@ with tab_scanner:
             selected_stock = None
             
             # Allow search even if no signals
-            search_query = st.text_input("🔍 Search for any stock (e.g., RELIANCE.NS)", placeholder="Enter symbol...").strip().upper()
+            @st.cache_data
+            def get_all_symbols():
+                return load_stock_list()
+            
+            all_symbols = get_all_symbols()
+            search_options = [""] + all_symbols
+            
+            search_query = st.selectbox(
+                "🔍 Search for any stock (Type to search)",
+                options=search_options,
+                index=0,
+                placeholder="Select or type symbol..."
+            )
+            
             if search_query:
-                if not (search_query.endswith(".NS") or search_query.endswith(".BO")):
-                    search_query += ".NS"
                 selected_stock = search_query
 
     with col_detail:
