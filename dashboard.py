@@ -8,8 +8,14 @@ from plotting import plot_stock_chart
 from streamlit_lightweight_charts import renderLightweightCharts
 from forecasting import get_ai_price_prediction
 from btst_strategy import get_btst_candidates
+from stock_list import load_stock_list
 import subprocess
 import sys
+
+# Cache the stock list to avoid re-fetching on every rerun
+@st.cache_data
+def get_all_symbols():
+    return load_stock_list()
 
 st.set_page_config(
     page_title="Algo Trading Dashboard",
@@ -130,7 +136,8 @@ with tab_scanner:
     with col_main:
         st.subheader("Live Buy Signals")
         # Fetch data
-        signals = get_recent_signals(limit=100)
+        # Fetch data
+        signals = get_recent_signals(limit=500)
 
         if signals:
             df = pd.DataFrame(signals)
@@ -201,11 +208,6 @@ with tab_scanner:
             selected_stock = None
             
             # --- Autocomplete Search ---
-            # Cache the stock list to avoid re-fetching on every rerun
-            @st.cache_data
-            def get_all_symbols():
-                return load_stock_list()
-            
             all_symbols = get_all_symbols()
             # Add a placeholder option
             search_options = [""] + all_symbols
@@ -227,10 +229,6 @@ with tab_scanner:
             selected_stock = None
             
             # Allow search even if no signals
-            @st.cache_data
-            def get_all_symbols():
-                return load_stock_list()
-            
             all_symbols = get_all_symbols()
             search_options = [""] + all_symbols
             
