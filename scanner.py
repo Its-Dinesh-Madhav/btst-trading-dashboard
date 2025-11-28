@@ -16,8 +16,7 @@ def process_stock(symbol):
     Returns result dict if signal found, else None.
     """
     try:
-    try:
-        # 1. Fetch Daily Data (The "Pine Script" Logic)
+        # 1. Fetch Daily Data
         ticker = yf.Ticker(symbol)
         df_daily = ticker.history(period="6mo", interval="1d")
         
@@ -27,55 +26,73 @@ def process_stock(symbol):
         # Clean column names
         df_daily.columns = [c.lower() for c in df_daily.columns]
         
-        # 2. Apply Strategy on Daily Frame
+        # 2. Apply Strategy
         from strategy import calculate_strategy_indicators
         df_daily = calculate_strategy_indicators(df_daily)
         
-        # Check Buy Condition manually to get the TSL level
-        latest = df_daily.iloc[-1]
-        prev = df_daily.iloc[-2]
+        # 3. Scan Last 7 Days for Signals
+        # We need to find the *current* status.
+        # If the last signal was BUY, we keep it. If SELL, we remove it.
         
-        # Condition: Crossover (Close crosses above TSL)
-        crossover = (prev['close'] < prev['tsl']) and (latest['close'] > latest['tsl'])
+        last_signal = None # 'BUY' or 'SELL'
+        signal_details = {}
         
-        # Condition: Crossunder (Close crosses below TSL) -> SELL
-        crossunder = (prev['close'] > prev['tsl']) and (latest['close'] < latest['tsl'])
-        
-        if crossunder:
+        # Iterate over the last 10 candles to be safe
+        days_to_scan = 10
+        if len(df_daily) < days_to_scan + 2:
+            days_to_scan = len(df_daily) - 2
+            
+        for i in range(len(df_daily) - days_to_scan, len(df_daily)):
+            curr = df_daily.iloc[i]
+            prev = df_daily.iloc[i-1]
+            
+            # Buy Crossover
+            if (prev['close'] < prev['tsl']) and (curr['close'] > curr['tsl']):
+                last_signal = 'BUY'
+                signal_details = {
+                    'price': curr['close'],
+                    'date': curr.name.strftime('%Y-%m-%d'),
+                    'tsl': curr['tsl']
+                }
+                
+            # Sell Crossunder
+            elif (prev['close'] > prev['tsl']) and (curr['close'] < curr['tsl']):
+                last_signal = 'SELL'
+                
+        # 4. Action based on Last Signal
+        if last_signal == 'SELL':
             remove_signal(symbol)
             return {'Symbol': symbol, 'Status': 'Removed (Sell Signal)'}
-        
-        if crossover:
-            price = latest['close']
-            date = latest.name.strftime('%Y-%m-%d')
-            daily_tsl = latest['tsl']
             
-            # 3. Find Exact Trigger Time using Intraday Data
-            # We want the time when Price > Daily TSL first happened today
-            timestamp = f"{date} 09:15:00" # Default to market open if not found
+        elif last_signal == 'BUY':
+            # We have a valid active buy signal (from today or recent past)
+            price = signal_details['price']
+            date = signal_details['date']
+            daily_tsl = signal_details['tsl']
+            
+            # Find Exact Trigger Time (Intraday) for that specific date
+            timestamp = f"{date} 09:15:00"
             
             try:
-                # Fetch today's 15m data
-                df_intra = ticker.history(period="5d", interval="15m")
+                # Fetch intraday data covering the signal date
+                # 5d might not be enough if signal was 7 days ago, but max is 60d for 15m
+                df_intra = ticker.history(period="1mo", interval="15m") 
                 if not df_intra.empty:
-                    # Filter for today
                     df_intra.columns = [c.lower() for c in df_intra.columns]
-                    today_str = latest.name.strftime('%Y-%m-%d')
-                    df_today = df_intra[df_intra.index.strftime('%Y-%m-%d') == today_str]
+                    df_today = df_intra[df_intra.index.strftime('%Y-%m-%d') == date]
                     
-                    # Find first candle > Daily TSL
                     for idx, row in df_today.iterrows():
                         if row['close'] > daily_tsl:
                             timestamp = idx.strftime('%Y-%m-%d %H:%M:%S')
                             break
             except Exception:
-                pass # Fallback to default timestamp
-            
+                pass
+
             # Calculate Trend Prediction
             tech_data = get_technical_analysis(symbol, df=df_daily)
             trend_pred = tech_data['prediction'] if tech_data else "Neutral"
             
-            # Save to DB
+            # Save to DB (add_signal handles duplicates, so safe to call again)
             add_signal(symbol, price, date, trend_pred, timestamp=timestamp)
             
             return {
@@ -85,8 +102,8 @@ def process_stock(symbol):
                 'Trend': trend_pred,
                 'Timestamp': timestamp
             }
+            
     except Exception:
-        # Silently fail for individual stock errors to keep scanner running
         return None
     return None
 
