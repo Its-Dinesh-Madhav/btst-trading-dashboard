@@ -6,13 +6,14 @@ from database import add_signal, remove_signal
 from analysis import get_technical_analysis
 import time
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm import tqdm
+import argparse
+import sys
 
-def process_stock(symbol):
+def process_stock(symbol, strategy_type='all'):
     """
     Fetches data and checks for signal for a single stock.
     Returns result dict if signal found, else None.
+    strategy_type: 'all', 'sniper', 'golden'
     """
     try:
         # 1. Fetch Daily Data
@@ -44,23 +45,26 @@ def process_stock(symbol):
             curr = df_daily.iloc[i]
             prev = df_daily.iloc[i - 1]
             
-            # Sniper Buy Crossover
-            if (prev['close'] < prev['tsl']) and (curr['close'] > curr['tsl']):
-                last_signal = 'BUY'
-                signal_details = {
-                    'price': curr['close'],
-                    'date': curr.name.strftime('%Y-%m-%d'),
-                    'tsl': curr['tsl']
-                }
-            # Sniper Sell Crossunder
-            elif (prev['close'] > prev['tsl']) and (curr['close'] < curr['tsl']):
-                last_signal = 'SELL'
+            # Sniper Strategy Checks
+            if strategy_type in ['all', 'sniper']:
+                # Sniper Buy Crossover
+                if (prev['close'] < prev['tsl']) and (curr['close'] > curr['tsl']):
+                    last_signal = 'BUY'
+                    signal_details = {
+                        'price': curr['close'],
+                        'date': curr.name.strftime('%Y-%m-%d'),
+                        'tsl': curr['tsl']
+                    }
+                # Sniper Sell Crossunder
+                elif (prev['close'] > prev['tsl']) and (curr['close'] < curr['tsl']):
+                    last_signal = 'SELL'
             
             # Golden Crossover detection using new functions
-            if check_golden_crossover_buy(df_daily):
-                golden_signal = 'BUY'
-            elif check_golden_crossover_sell(df_daily):
-                golden_signal = 'SELL'
+            if strategy_type in ['all', 'golden']:
+                if check_golden_crossover_buy(df_daily):
+                    golden_signal = 'BUY'
+                elif check_golden_crossover_sell(df_daily):
+                    golden_signal = 'SELL'
         
         # 4. Action based on Signals
         if last_signal == 'SELL':
@@ -110,8 +114,8 @@ def process_stock(symbol):
         return None
     return None
 
-def scan_stocks():
-    print("--- Starting Algo Scanner ---")
+def scan_stocks(strategy_type='all'):
+    print(f"--- Starting Algo Scanner ({strategy_type.upper()}) ---")
     
     # 1. Load Stock List
     symbols = load_stock_list()
@@ -123,7 +127,7 @@ def scan_stocks():
     
     with ThreadPoolExecutor(max_workers=10) as executor:
         # Submit all tasks
-        future_to_symbol = {executor.submit(process_stock, sym): sym for sym in symbols}
+        future_to_symbol = {executor.submit(process_stock, sym, strategy_type): sym for sym in symbols}
         
         # Process results as they complete with a progress bar
         for future in tqdm(as_completed(future_to_symbol), total=len(symbols), unit="stock"):
@@ -134,4 +138,10 @@ def scan_stocks():
     print("Check the Dashboard for results.")
 
 if __name__ == "__main__":
-    scan_stocks()
+    parser = argparse.ArgumentParser(description='Run Algo Scanner')
+    parser.add_argument('--strategy', type=str, default='all', 
+                        choices=['all', 'sniper', 'golden'],
+                        help='Strategy to scan for: all, sniper, or golden')
+    
+    args = parser.parse_args()
+    scan_stocks(strategy_type=args.strategy)

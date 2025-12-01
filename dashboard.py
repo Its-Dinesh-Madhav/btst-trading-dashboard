@@ -95,6 +95,11 @@ with tab_sniper:
     3.  ✅ **Volume:** > 1.5x Average Volume
     """)
     
+    if st.button("🎯 Run Sniper Scan"):
+        st.info("Starting Sniper scan... check terminal for progress.")
+        subprocess.Popen([sys.executable, "scanner.py", "--strategy", "sniper"])
+        st.success("Sniper scanner started in background!")
+    
     # Reuse the same data fetching logic but filter for Sniper
     signals = get_recent_signals(limit=500)
     if signals:
@@ -149,6 +154,11 @@ with tab_golden:
     **Strategy:** Identifies stocks where the 50-day Simple Moving Average (SMA) crosses above the 200-day SMA.
     This is generally considered a bullish signal, indicating potential for an uptrend.
     """)
+
+    if st.button("🏅 Run Golden Crossover Scan"):
+        st.info("Starting Golden Crossover scan... check terminal for progress.")
+        subprocess.Popen([sys.executable, "scanner.py", "--strategy", "golden"])
+        st.success("Golden Crossover scanner started in background!")
 
     # Reuse the same data fetching logic but filter for Golden Crossover
     signals = get_recent_signals(limit=500)
