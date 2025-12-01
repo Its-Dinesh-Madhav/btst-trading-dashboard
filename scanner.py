@@ -1,8 +1,7 @@
 import yfinance as yf
 import pandas as pd
 from stock_list import load_stock_list
-from stock_list import load_stock_list
-from strategy import check_buy_signal, check_sell_signal
+from strategy import check_buy_signal, check_sell_signal, check_golden_crossover_buy, check_golden_crossover_sell
 from database import add_signal, remove_signal
 from analysis import get_technical_analysis
 import time
@@ -30,23 +29,22 @@ def process_stock(symbol):
         from strategy import calculate_strategy_indicators
         df_daily = calculate_strategy_indicators(df_daily)
         
-        # 3. Scan Last 7 Days for Signals
-        # We need to find the *current* status.
-        # If the last signal was BUY, we keep it. If SELL, we remove it.
+        # 3. Scan Last 10 Days for Signals
+        # Detect standard Sniper signals and Golden Crossover signals.
         
-        last_signal = None # 'BUY' or 'SELL'
+        last_signal = None  # 'BUY' or 'SELL'
         signal_details = {}
+        golden_signal = None  # 'BUY' or 'SELL'
         
-        # Iterate over the last 10 candles to be safe
         days_to_scan = 10
         if len(df_daily) < days_to_scan + 2:
             days_to_scan = len(df_daily) - 2
-            
+        
         for i in range(len(df_daily) - days_to_scan, len(df_daily)):
             curr = df_daily.iloc[i]
-            prev = df_daily.iloc[i-1]
+            prev = df_daily.iloc[i - 1]
             
-            # Buy Crossover
+            # Sniper Buy Crossover
             if (prev['close'] < prev['tsl']) and (curr['close'] > curr['tsl']):
                 last_signal = 'BUY'
                 signal_details = {
@@ -54,12 +52,17 @@ def process_stock(symbol):
                     'date': curr.name.strftime('%Y-%m-%d'),
                     'tsl': curr['tsl']
                 }
-                
-            # Sell Crossunder
+            # Sniper Sell Crossunder
             elif (prev['close'] > prev['tsl']) and (curr['close'] < curr['tsl']):
                 last_signal = 'SELL'
-                
-        # 4. Action based on Last Signal
+            
+            # Golden Crossover detection using new functions
+            if check_golden_crossover_buy(df_daily):
+                golden_signal = 'BUY'
+            elif check_golden_crossover_sell(df_daily):
+                golden_signal = 'SELL'
+        
+        # 4. Action based on Signals
         if last_signal == 'SELL':
             remove_signal(symbol)
             return {'Symbol': symbol, 'Status': 'Removed (Sell Signal)'}

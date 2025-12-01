@@ -49,7 +49,7 @@ auto_refresh = st.sidebar.checkbox("Auto-refresh Data", value=True)
 # Main Content
 # Main Content
 # Main Content
-tab_scanner, tab_sniper, tab_watchlist, tab_market, tab_pred = st.tabs(["📡 Scanner", "🎯 Sniper Signals", "⭐ Watchlist", "🌍 Market Overview", "🔮 Tomorrow's Prediction"])
+tab_scanner, tab_sniper, tab_golden, tab_watchlist, tab_market, tab_pred = st.tabs(["📡 Scanner", "🎯 Sniper Signals", "🏅 Golden Crossover", "⭐ Watchlist", "🌍 Market Overview", "🔮 Tomorrow's Prediction"])
 
 with tab_pred:
     st.subheader("🚀 BTST (Buy Today, Sell Tomorrow) Predictor")
@@ -98,7 +98,7 @@ with tab_sniper:
     # Reuse the same data fetching logic but filter for Sniper
     signals = get_recent_signals(limit=500)
     if signals:
-        df_s = pd.DataFrame(signals)
+        df = pd.DataFrame(signals)
         
         # Define expected columns and their display names
         expected_cols = {
@@ -112,35 +112,91 @@ with tab_sniper:
         
         # Ensure all expected columns exist, add with default if missing
         for col_db, col_display in expected_cols.items():
-            if col_db not in df_s.columns:
-                df_s[col_db] = 'N/A' # Default value for missing columns
+            if col_db not in df.columns:
+                df[col_db] = 'N/A' # Default value for missing columns
         
         # Select and rename columns
-        df_s = df_s[[col for col in expected_cols.keys() if col in df_s.columns]]
-        df_s.columns = [expected_cols[col] for col in df_s.columns]
+        df = df[[col for col in expected_cols.keys() if col in df.columns]]
+        df.columns = [expected_cols[col] for col in df.columns]
         
         # Handle missing signal_strength (backward compatibility) if it was added as 'N/A'
-        if 'Strength' in df_s.columns:
-            df_s['Strength'] = df_s['Strength'].replace('N/A', 'Standard')
+        if 'Strength' in df.columns:
+            df['Strength'] = df['Strength'].replace('N/A', 'Standard')
         else:
-            df_s['Strength'] = 'Standard' # Add if still missing after initial check
+            df['Strength'] = 'Standard' # Add if still missing after initial check
         
-        # Filter for Sniper
-        df_sniper = df_s[df_s['Strength'].str.contains("Sniper", na=False)]
+        # Filter for Sniper (case-insensitive)
+        df_sniper = df[df['Strength'].str.contains("Sniper", case=False, na=False)]
         
         if not df_sniper.empty:
-            # Convert Time
+            # Convert Time to IST
             try:
                 df_sniper['Scanned At'] = pd.to_datetime(df_sniper['Scanned At'])
                 df_sniper['Scanned At'] = df_sniper['Scanned At'] + pd.Timedelta(hours=5, minutes=30)
                 df_sniper['Scanned At'] = df_sniper['Scanned At'].dt.strftime('%Y-%m-%d %H:%M:%S')
-            except: pass
+            except Exception:
+                pass
             
             st.dataframe(df_sniper, use_container_width=True, hide_index=True)
         else:
             st.info("No 'Sniper' signals found yet. These are rare but high probability.")
     else:
-        st.info("No signals found.")
+        st.info("No signals found. These are rare but high probability.")
+
+with tab_golden:
+    st.subheader("🏅 Golden Crossover Signals")
+    st.markdown("""
+    **Strategy:** Identifies stocks where the 50-day Simple Moving Average (SMA) crosses above the 200-day SMA.
+    This is generally considered a bullish signal, indicating potential for an uptrend.
+    """)
+
+    # Reuse the same data fetching logic but filter for Golden Crossover
+    signals = get_recent_signals(limit=500)
+    if signals:
+        df = pd.DataFrame(signals)
+        
+        # Define expected columns and their display names
+        expected_cols = {
+            'symbol': 'Symbol',
+            'price': 'Price (INR)',
+            'signal_date': 'Signal Date',
+            'trend_prediction': 'Trend',
+            'timestamp': 'Scanned At',
+            'signal_strength': 'Strength'
+        }
+        
+        # Ensure all expected columns exist, add with default if missing
+        for col_db, col_display in expected_cols.items():
+            if col_db not in df.columns:
+                df[col_db] = 'N/A' # Default value for missing columns
+        
+        # Select and rename columns
+        df = df[[col for col in expected_cols.keys() if col in df.columns]]
+        df.columns = [expected_cols[col] for col in df.columns]
+        
+        # Handle missing signal_strength (backward compatibility) if it was added as 'N/A'
+        if 'Strength' in df.columns:
+            df['Strength'] = df['Strength'].replace('N/A', 'Standard')
+        else:
+            df['Strength'] = 'Standard' # Add if still missing after initial check
+        
+        # Filter for Golden Crossover (case-insensitive)
+        df_golden = df[df['Strength'].str.contains("Golden Crossover", case=False, na=False)]
+        
+        if not df_golden.empty:
+            # Convert Time to IST
+            try:
+                df_golden['Scanned At'] = pd.to_datetime(df_golden['Scanned At'])
+                df_golden['Scanned At'] = df_golden['Scanned At'] + pd.Timedelta(hours=5, minutes=30)
+                df_golden['Scanned At'] = df_golden['Scanned At'].dt.strftime('%Y-%m-%d %H:%M:%S')
+            except Exception:
+                pass
+            
+            st.dataframe(df_golden, use_container_width=True, hide_index=True)
+        else:
+            st.info("No 'Golden Crossover' signals found yet. These signals indicate potential long-term uptrends.")
+    else:
+        st.info("No signals found. These signals indicate potential long-term uptrends.")
 
 with tab_market:
     col_m1, col_m2 = st.columns([2, 1])

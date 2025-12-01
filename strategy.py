@@ -100,3 +100,48 @@ def check_sell_signal(df):
         return True
 
     return False
+
+
+def calculate_golden_crossover(df, short_period=9, long_period=21):
+    """
+    Calculate short and long EMA and generate a 'gc_signal' column:
+    - 'Buy' when short EMA crosses above long EMA
+    - 'Sell' when short EMA crosses below long EMA
+    - 'None' otherwise
+    """
+    if df is None or df.empty or len(df) < long_period:
+        return df
+    # Calculate EMAs using pandas_ta
+    df['ema_short'] = ta.ema(df['close'], length=short_period)
+    df['ema_long'] = ta.ema(df['close'], length=long_period)
+    df['gc_signal'] = 'None'
+    for i in range(1, len(df)):
+        prev_short = df.at[i-1, 'ema_short']
+        prev_long = df.at[i-1, 'ema_long']
+        cur_short = df.at[i, 'ema_short']
+        cur_long = df.at[i, 'ema_long']
+        if pd.isna(prev_short) or pd.isna(prev_long) or pd.isna(cur_short) or pd.isna(cur_long):
+            continue
+        if prev_short <= prev_long and cur_short > cur_long:
+            df.at[i, 'gc_signal'] = 'Buy'
+        elif prev_short >= prev_long and cur_short < cur_long:
+            df.at[i, 'gc_signal'] = 'Sell'
+    return df
+
+
+def check_golden_crossover_buy(df):
+    """Return True if the latest row has a Golden Crossover Buy signal."""
+    if df is None or df.empty:
+        return False
+    df = calculate_golden_crossover(df)
+    latest = df.iloc[-1]
+    return latest.get('gc_signal') == 'Buy'
+
+
+def check_golden_crossover_sell(df):
+    """Return True if the latest row has a Golden Crossover Sell signal."""
+    if df is None or df.empty:
+        return False
+    df = calculate_golden_crossover(df)
+    latest = df.iloc[-1]
+    return latest.get('gc_signal') == 'Sell'
