@@ -24,7 +24,28 @@ def init_db():
     
     # Run migration to ensure column exists in old DBs
     migrate_db()
+    # Run migration to ensure column exists in old DBs
+    migrate_db()
     init_portfolio_db()
+    init_swing_db()
+
+def init_swing_db():
+    """Creates the swing_signals table."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS swing_signals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol TEXT NOT NULL,
+            price REAL NOT NULL,
+            signal_date TEXT NOT NULL,
+            strategy_type TEXT NOT NULL, -- 'Breakout', 'Pullback', 'VolumePocket'
+            reason TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
 def init_portfolio_db():
     """Creates the portfolio table."""
@@ -168,6 +189,51 @@ def remove_signal(symbol):
     c.execute('DELETE FROM signals WHERE symbol = ?', (symbol,))
     conn.commit()
     conn.close()
+
+# --- Swing Signal Functions ---
+
+def add_swing_signal(symbol, price, signal_date, strategy_type, reason):
+    """Adds a new swing trading signal."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    # Avoid duplicates for same day and strategy
+    c.execute('''
+        SELECT id FROM swing_signals 
+        WHERE symbol = ? AND signal_date = ? AND strategy_type = ?
+    ''', (symbol, signal_date, strategy_type))
+    
+    if not c.fetchone():
+        c.execute('''
+            INSERT INTO swing_signals (symbol, price, signal_date, strategy_type, reason)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (symbol, price, signal_date, strategy_type, reason))
+        conn.commit()
+    
+    conn.close()
+
+def get_swing_signals(strategy_type=None, limit=100):
+    """Fetches recent swing signals, optionally filtered by strategy."""
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    
+    if strategy_type:
+        c.execute('''
+            SELECT * FROM swing_signals 
+            WHERE strategy_type = ?
+            ORDER BY timestamp DESC 
+            LIMIT ?
+        ''', (strategy_type, limit))
+    else:
+        c.execute('''
+            SELECT * FROM swing_signals 
+            ORDER BY timestamp DESC 
+            LIMIT ?
+        ''', (limit,))
+        
+    rows = c.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 # Initialize on module load
 init_db()
