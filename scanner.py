@@ -67,27 +67,25 @@ def process_stock(symbol, strategy_type='all'):
                     golden_signal = 'SELL'
         
         # 4. Action based on Signals
+        
+        # --- Handle TSL / Sniper Signals ---
         if last_signal == 'SELL':
             remove_signal(symbol)
-            return {'Symbol': symbol, 'Status': 'Removed (Sell Signal)'}
+            # We don't return here because we might still have a Golden Crossover BUY
             
         elif last_signal == 'BUY':
-            # We have a valid active buy signal (from today or recent past)
+            # We have a valid active buy signal
             price = signal_details['price']
             date = signal_details['date']
             daily_tsl = signal_details['tsl']
             
-            # Find Exact Trigger Time (Intraday) for that specific date
+            # Find Exact Trigger Time
             timestamp = f"{date} 09:15:00"
-            
             try:
-                # Fetch intraday data covering the signal date
-                # 5d might not be enough if signal was 7 days ago, but max is 60d for 15m
                 df_intra = ticker.history(period="1mo", interval="15m") 
                 if not df_intra.empty:
                     df_intra.columns = [c.lower() for c in df_intra.columns]
                     df_today = df_intra[df_intra.index.strftime('%Y-%m-%d') == date]
-                    
                     for idx, row in df_today.iterrows():
                         if row['close'] > daily_tsl:
                             timestamp = idx.strftime('%Y-%m-%d %H:%M:%S')
@@ -99,16 +97,68 @@ def process_stock(symbol, strategy_type='all'):
             tech_data = get_technical_analysis(symbol, df=df_daily)
             trend_pred = tech_data['prediction'] if tech_data else "Neutral"
             
-            # Save to DB (add_signal handles duplicates, so safe to call again)
-            add_signal(symbol, price, date, trend_pred, timestamp=timestamp)
+            # DETERMINE SIGNAL STRENGTH (Standard vs Sniper)
+            # Sniper Criteria: Price > 200 EMA, RSI 40-70, Vol > 1.5x Avg
+            strength = "Standard"
+            try:
+                # EMA 200
+                ema_200 = ta.ema(df_daily['close'], length=200).iloc[-1]
+                # RSI
+                rsi = ta.rsi(df_daily['close'], length=14).iloc[-1]
+                # Volume
+                vol_avg = df_daily['volume'].rolling(window=20).mean().iloc[-1]
+                vol_curr = df_daily['volume'].iloc[-1]
+                
+                if (price > ema_200) and (40 <= rsi <= 70) and (vol_curr > 1.5 * vol_avg):
+                    strength = "Sniper"
+            except Exception:
+                pass
+            
+            add_signal(symbol, price, date, trend_pred, timestamp=timestamp, signal_strength=strength)
             
             return {
                 'Symbol': symbol,
                 'Price': price,
                 'Date': date,
                 'Trend': trend_pred,
-                'Timestamp': timestamp
+                'Timestamp': timestamp,
+                'Strength': strength
             }
+
+        # --- Handle Golden Crossover Signals ---
+        if golden_signal == 'BUY':
+            # For GC, we just use the latest date/price
+            price = df_daily['close'].iloc[-1]
+            date = df_daily.index[-1].strftime('%Y-%m-%d')
+            
+            # Check if we already have a Standard/Sniper signal for this date to avoid clutter?
+            # Or just add it as a separate entry. The DB allows multiple signals if details differ?
+            # add_signal checks (symbol, date). If we want to store BOTH, we might need to differentiate.
+            # But usually, if it's a GC, it's a strong signal on its own.
+            # Let's save it with strength='Golden Crossover'
+            
+            # We need to be careful not to overwrite a Sniper signal if it happened same day.
+            # But add_signal prevents duplicates based on (symbol, date).
+            # If we want to support multiple signal types per day, we'd need to change DB schema or logic.
+            # For now, let's assume if it's Sniper/Standard, that takes precedence for "Signal Date".
+            # BUT Golden Crossover is a long term signal.
+            
+            # Let's try to add it. If it fails (duplicate), so be it.
+            # Actually, we should probably check if we just added a signal above.
+            
+            if last_signal != 'BUY': # Only add GC if we didn't just add a TSL buy
+                 tech_data = get_technical_analysis(symbol, df=df_daily)
+                 trend_pred = tech_data['prediction'] if tech_data else "Neutral"
+                 add_signal(symbol, price, date, trend_pred, signal_strength="Golden Crossover")
+                 
+                 return {
+                    'Symbol': symbol,
+                    'Price': price,
+                    'Date': date,
+                    'Trend': trend_pred,
+                    'Strength': "Golden Crossover"
+                 }
+
             
     except Exception:
         return None
