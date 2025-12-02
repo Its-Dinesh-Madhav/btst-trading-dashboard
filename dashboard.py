@@ -96,10 +96,19 @@ with tab_sniper:
     """)
     
     if st.button("🎯 Run Sniper Scan"):
-        st.info("Starting Sniper scan... check terminal for progress.")
-        subprocess.Popen([sys.executable, "scanner.py", "--strategy", "sniper"])
-        st.success("Sniper scanner started in background!")
+        st.info("Starting Sniper scan... check logs for progress.")
+        with open("scanner_sniper_log.txt", "w") as log_file:
+            subprocess.Popen([sys.executable, "scanner.py", "--strategy", "sniper"], stdout=log_file, stderr=log_file)
+        st.success("Sniper scanner started in background! Refresh in a few minutes.")
     
+    # Show Log Output (Optional Debugging)
+    if st.checkbox("Show Sniper Scanner Logs"):
+        try:
+            with open("scanner_sniper_log.txt", "r") as f:
+                st.text_area("Sniper Scanner Logs", f.read(), height=200)
+        except FileNotFoundError:
+            st.info("No sniper scanner logs found yet.")
+
     # Reuse the same data fetching logic but filter for Sniper
     signals = get_recent_signals(limit=500)
     if signals:
@@ -156,9 +165,10 @@ with tab_golden:
     """)
 
     if st.button("🏅 Run Golden Crossover Scan"):
-        st.info("Starting Golden Crossover scan... check terminal for progress.")
-        subprocess.Popen([sys.executable, "scanner.py", "--strategy", "golden"])
-        st.success("Golden Crossover scanner started in background!")
+        st.info("Starting Golden Crossover scan... check logs for progress.")
+        log_file = open("scanner_log.txt", "w")
+        subprocess.Popen([sys.executable, "scanner.py", "--strategy", "golden"], stdout=log_file, stderr=log_file)
+        st.success("Golden Crossover scanner started in background! Refresh in a few minutes.")
 
     # Reuse the same data fetching logic but filter for Golden Crossover
     signals = get_recent_signals(limit=500)
