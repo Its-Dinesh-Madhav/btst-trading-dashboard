@@ -44,6 +44,32 @@ trend_filter = st.sidebar.selectbox(
 
 auto_refresh = st.sidebar.checkbox("Auto-refresh Data", value=True)
 
+# --- Debug Info ---
+with st.sidebar.expander("🔧 System Debug Info"):
+    import os
+    import sqlite3
+    try:
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        DB_PATH = os.path.join(BASE_DIR, "signals.db")
+        st.text(f"DB Path:\n{DB_PATH}")
+        
+        if os.path.exists(DB_PATH):
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT count(*) FROM signals")
+            count = c.fetchone()[0]
+            st.metric("Total Signals in DB", count)
+            
+            # Show last signal date
+            c.execute("SELECT max(timestamp) FROM signals")
+            last_ts = c.fetchone()[0]
+            st.text(f"Last Update:\n{last_ts}")
+            conn.close()
+        else:
+            st.error("❌ DB File NOT Found!")
+    except Exception as e:
+        st.error(f"Debug Error: {e}")
+
 # Main Content
 # Main Content
 # Main Content

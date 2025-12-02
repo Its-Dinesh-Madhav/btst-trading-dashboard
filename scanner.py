@@ -117,8 +117,9 @@ def process_stock(symbol, strategy_type='all'):
                     strength = "Sniper"
             except Exception:
                 pass
-            
+            # Save to DB (add_signal handles duplicates, so safe to call again)
             add_signal(symbol, price, date, trend_pred, timestamp=timestamp, signal_strength=strength)
+            print(f"✅ FOUND SIGNAL: {symbol} ({strength}) at {price}")
             
             return {
                 'Symbol': symbol,
@@ -154,6 +155,7 @@ def process_stock(symbol, strategy_type='all'):
                  tech_data = get_technical_analysis(symbol, df=df_daily)
                  trend_pred = tech_data['prediction'] if tech_data else "Neutral"
                  add_signal(symbol, price, date, trend_pred, signal_strength="Golden Crossover")
+                 print(f"🏅 FOUND GOLDEN CROSSOVER: {symbol} at {price}")
                  
                  return {
                     'Symbol': symbol,
