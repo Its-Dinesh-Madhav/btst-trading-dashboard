@@ -9,9 +9,18 @@ import time
 from datetime import datetime
 import argparse
 import argparse
+import argparse
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
+import requests
+import time
+
+# Create a session with headers to mimic a browser
+session = requests.Session()
+session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
+})
 
 def process_stock(symbol, strategy_type='all'):
     """
@@ -20,9 +29,17 @@ def process_stock(symbol, strategy_type='all'):
     strategy_type: 'all', 'sniper', 'golden'
     """
     try:
-        # 1. Fetch Daily Data
-        ticker = yf.Ticker(symbol)
-        df_daily = ticker.history(period="6mo", interval="1d")
+        # 1. Fetch Daily Data with Retries
+        df_daily = pd.DataFrame()
+        for attempt in range(3):
+            try:
+                ticker = yf.Ticker(symbol, session=session)
+                df_daily = ticker.history(period="6mo", interval="1d")
+                if not df_daily.empty:
+                    break
+                time.sleep(1) # Wait a bit before retry
+            except Exception:
+                time.sleep(1)
         
         if df_daily.empty:
             return {'Symbol': symbol, 'Status': 'No Data', 'HasData': False}
@@ -186,7 +203,8 @@ def scan_stocks(strategy_type='all'):
     no_data_count = 0
     signals_found_count = 0
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    # Reduce workers to avoid rate limiting
+    with ThreadPoolExecutor(max_workers=4) as executor:
         # Submit all tasks
         future_to_symbol = {executor.submit(process_stock, sym, strategy_type): sym for sym in symbols}
         
