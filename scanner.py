@@ -1,4 +1,5 @@
 import yfinance as yf
+import pandas_ta as ta
 import pandas as pd
 from stock_list import load_stock_list
 from strategy import check_buy_signal, check_sell_signal, check_golden_crossover_buy, check_golden_crossover_sell
@@ -7,7 +8,10 @@ from analysis import get_technical_analysis
 import time
 from datetime import datetime
 import argparse
+import argparse
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 def process_stock(symbol, strategy_type='all'):
     """

@@ -258,6 +258,13 @@ with tab_scanner:
 
     with col_main:
         st.subheader("Live Buy Signals (Standard)")
+        
+        # --- Date Filter (Always Visible) ---
+        time_filter = st.sidebar.selectbox(
+            "Filter by Time",
+            ["All", "Today", "Yesterday", "Last 7 Days"]
+        )
+
         # Fetch data
         signals = get_recent_signals(limit=500)
 
@@ -291,12 +298,7 @@ with tab_scanner:
             except Exception:
                 pass
 
-            # --- Date Filter ---
-            time_filter = st.sidebar.selectbox(
-                "Filter by Time",
-                ["All", "Today", "Yesterday", "Last 7 Days"]
-            )
-            
+            # --- Apply Date Filter ---
             if time_filter != "All":
                 try:
                     df['dt'] = pd.to_datetime(df['Scanned At'])
