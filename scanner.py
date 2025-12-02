@@ -25,7 +25,7 @@ def process_stock(symbol, strategy_type='all'):
         df_daily = ticker.history(period="6mo", interval="1d")
         
         if df_daily.empty:
-            return None
+            return {'Symbol': symbol, 'Status': 'No Data', 'HasData': False}
             
         # Clean column names
         df_daily.columns = [c.lower() for c in df_daily.columns]
@@ -167,8 +167,8 @@ def process_stock(symbol, strategy_type='all'):
 
             
     except Exception:
-        return None
-    return None
+        return {'Symbol': symbol, 'Status': 'Error', 'HasData': False}
+    return {'Symbol': symbol, 'Status': 'No Signal', 'HasData': True}
 
 def scan_stocks(strategy_type='all'):
     print(f"--- Starting Algo Scanner ({strategy_type.upper()}) ---")
@@ -181,16 +181,35 @@ def scan_stocks(strategy_type='all'):
     # Max workers = 10 to avoid hitting rate limits too hard but still be fast
     print("Scanning... (This may take a while for large lists)")
     
+    
+    data_fetched_count = 0
+    no_data_count = 0
+    signals_found_count = 0
+
     with ThreadPoolExecutor(max_workers=10) as executor:
         # Submit all tasks
         future_to_symbol = {executor.submit(process_stock, sym, strategy_type): sym for sym in symbols}
         
         # Process results as they complete with a progress bar
         for future in tqdm(as_completed(future_to_symbol), total=len(symbols), unit="stock"):
-            # Results are already saved to DB in process_stock
-            pass
+            try:
+                result = future.result()
+                if result:
+                    if result.get('HasData', False):
+                        data_fetched_count += 1
+                    else:
+                        no_data_count += 1
+                        
+                    if 'Price' in result: # Signal found
+                        signals_found_count += 1
+            except Exception as e:
+                print(f"Task failed: {e}")
 
-    print("\n--- Scan Complete ---")
+    print("\n--- Scan Summary ---")
+    print(f"Stocks with Data: {data_fetched_count}")
+    print(f"Stocks w/o Data:  {no_data_count}")
+    print(f"Signals Found:    {signals_found_count}")
+    print("--------------------")
     print("Check the Dashboard for results.")
 
 if __name__ == "__main__":
