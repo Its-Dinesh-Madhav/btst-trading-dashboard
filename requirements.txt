@@ -7,3 +7,5 @@ streamlit-lightweight-charts
 scikit-learn
 schedule
 textblob
+tqdm
+requests

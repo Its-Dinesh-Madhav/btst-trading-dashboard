@@ -1,4 +1,5 @@
 import yfinance as yf
+import pandas_ta as ta
 import pandas as pd
 from stock_list import load_stock_list
 from strategy import check_buy_signal, check_sell_signal, check_golden_crossover_buy, check_golden_crossover_sell
@@ -6,6 +7,8 @@ from database import add_signal, remove_signal
 from analysis import get_technical_analysis
 import time
 from datetime import datetime
+import argparse
+import argparse
 import argparse
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -93,8 +96,9 @@ def process_stock_data(symbol, df_daily, strategy_type='all'):
                     strength = "Sniper"
             except Exception:
                 pass
-            
+            # Save to DB (add_signal handles duplicates, so safe to call again)
             add_signal(symbol, price, date, trend_pred, timestamp=timestamp, signal_strength=strength)
+            print(f"✅ FOUND SIGNAL: {symbol} ({strength}) at {price}")
             
             return {
                 'Symbol': symbol,
@@ -114,6 +118,7 @@ def process_stock_data(symbol, df_daily, strategy_type='all'):
                  tech_data = get_technical_analysis(symbol, df=df_daily)
                  trend_pred = tech_data['prediction'] if tech_data else "Neutral"
                  add_signal(symbol, price, date, trend_pred, signal_strength="Golden Crossover")
+                 print(f"🏅 FOUND GOLDEN CROSSOVER: {symbol} at {price}")
                  
                  return {
                     'Symbol': symbol,
@@ -204,7 +209,11 @@ def scan_stocks(strategy_type='all'):
             
     pbar.close()
 
-    print("\n--- Scan Complete ---")
+    print("\n--- Scan Summary ---")
+    print(f"Stocks with Data: {total_processed}")
+    print(f"Stocks w/o Data:  {len(symbols) - total_processed}") # This is an approximation, better to track explicitly
+    print(f"Signals Found:    N/A (needs explicit tracking in process_stock_data)") # This needs to be tracked
+    print("--------------------")
     print("Check the Dashboard for results.")
 
 if __name__ == "__main__":

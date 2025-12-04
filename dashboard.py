@@ -40,6 +40,32 @@ trend_filter = st.sidebar.selectbox(
 
 auto_refresh = st.sidebar.checkbox("Auto-refresh Data", value=True)
 
+# --- Debug Info ---
+with st.sidebar.expander("🔧 System Debug Info"):
+    import os
+    import sqlite3
+    try:
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        DB_PATH = os.path.join(BASE_DIR, "signals.db")
+        st.text(f"DB Path:\n{DB_PATH}")
+        
+        if os.path.exists(DB_PATH):
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT count(*) FROM signals")
+            count = c.fetchone()[0]
+            st.metric("Total Signals in DB", count)
+            
+            # Show last signal date
+            c.execute("SELECT max(timestamp) FROM signals")
+            last_ts = c.fetchone()[0]
+            st.text(f"Last Update:\n{last_ts}")
+            conn.close()
+        else:
+            st.error("❌ DB File NOT Found!")
+    except Exception as e:
+        st.error(f"Debug Error: {e}")
+
 # Main Content
 # Main Content
 # Main Content
@@ -92,10 +118,19 @@ with tab_sniper:
     """)
     
     if st.button("🎯 Run Sniper Scan"):
-        st.info("Starting Sniper scan... check terminal for progress.")
-        subprocess.Popen([sys.executable, "scanner.py", "--strategy", "sniper"])
-        st.success("Sniper scanner started in background!")
+        st.info("Starting Sniper scan... check logs for progress.")
+        with open("scanner_sniper_log.txt", "w") as log_file:
+            subprocess.Popen([sys.executable, "scanner.py", "--strategy", "sniper"], stdout=log_file, stderr=log_file)
+        st.success("Sniper scanner started in background! Refresh in a few minutes.")
     
+    # Show Log Output (Optional Debugging)
+    if st.checkbox("Show Sniper Scanner Logs"):
+        try:
+            with open("scanner_sniper_log.txt", "r") as f:
+                st.text_area("Sniper Scanner Logs", f.read(), height=200)
+        except FileNotFoundError:
+            st.info("No sniper scanner logs found yet.")
+
     # Reuse the same data fetching logic but filter for Sniper
     signals = get_recent_signals(limit=500)
     if signals:
@@ -152,9 +187,10 @@ with tab_golden:
     """)
 
     if st.button("🏅 Run Golden Crossover Scan"):
-        st.info("Starting Golden Crossover scan... check terminal for progress.")
-        subprocess.Popen([sys.executable, "scanner.py", "--strategy", "golden"])
-        st.success("Golden Crossover scanner started in background!")
+        st.info("Starting Golden Crossover scan... check logs for progress.")
+        log_file = open("scanner_log.txt", "w")
+        subprocess.Popen([sys.executable, "scanner.py", "--strategy", "golden"], stdout=log_file, stderr=log_file)
+        st.success("Golden Crossover scanner started in background! Refresh in a few minutes.")
 
     # Reuse the same data fetching logic but filter for Golden Crossover
     signals = get_recent_signals(limit=500)
@@ -275,6 +311,12 @@ with tab_scanner:
                 
         st.divider()
 
+        # --- Date Filter (Always Visible) ---
+        time_filter = st.sidebar.selectbox(
+            "Filter by Time",
+            ["All", "Today", "Yesterday", "Last 7 Days"]
+        )
+
         # Fetch data
         signals = get_recent_signals(limit=500)
 
@@ -308,12 +350,7 @@ with tab_scanner:
             except Exception:
                 pass
 
-            # --- Date Filter ---
-            time_filter = st.sidebar.selectbox(
-                "Filter by Time",
-                ["All", "Today", "Yesterday", "Last 7 Days"]
-            )
-            
+            # --- Apply Date Filter ---
             if time_filter != "All":
                 try:
                     df['dt'] = pd.to_datetime(df['Scanned At'])
