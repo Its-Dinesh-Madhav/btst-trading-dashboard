@@ -8,22 +8,20 @@ import time
 from datetime import datetime
 import argparse
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
+import pandas_ta as ta
 
-def process_stock(symbol, strategy_type='all'):
+def process_stock_data(symbol, df_daily, strategy_type='all'):
     """
-    Fetches data and checks for signal for a single stock.
-    Returns result dict if signal found, else None.
-    strategy_type: 'all', 'sniper', 'golden'
+    Processes a single stock's dataframe for signals.
+    df_daily: DataFrame with daily data (Open, High, Low, Close, Volume)
     """
     try:
-        # 1. Fetch Daily Data
-        ticker = yf.Ticker(symbol)
-        df_daily = ticker.history(period="6mo", interval="1d")
-        
-        if df_daily.empty:
+        if df_daily.empty or len(df_daily) < 20:
             return None
             
-        # Clean column names
+        # Clean column names (ensure lowercase)
         df_daily.columns = [c.lower() for c in df_daily.columns]
         
         # 2. Apply Strategy
@@ -31,8 +29,6 @@ def process_stock(symbol, strategy_type='all'):
         df_daily = calculate_strategy_indicators(df_daily)
         
         # 3. Scan Last 10 Days for Signals
-        # Detect standard Sniper signals and Golden Crossover signals.
-        
         last_signal = None  # 'BUY' or 'SELL'
         signal_details = {}
         golden_signal = None  # 'BUY' or 'SELL'
@@ -59,7 +55,7 @@ def process_stock(symbol, strategy_type='all'):
                 elif (prev['close'] > prev['tsl']) and (curr['close'] < curr['tsl']):
                     last_signal = 'SELL'
             
-            # Golden Crossover detection using new functions
+            # Golden Crossover detection
             if strategy_type in ['all', 'golden']:
                 if check_golden_crossover_buy(df_daily):
                     golden_signal = 'BUY'
@@ -71,41 +67,25 @@ def process_stock(symbol, strategy_type='all'):
         # --- Handle TSL / Sniper Signals ---
         if last_signal == 'SELL':
             remove_signal(symbol)
-            # We don't return here because we might still have a Golden Crossover BUY
             
         elif last_signal == 'BUY':
-            # We have a valid active buy signal
             price = signal_details['price']
             date = signal_details['date']
-            daily_tsl = signal_details['tsl']
             
             # Find Exact Trigger Time
-            timestamp = f"{date} 09:15:00"
-            try:
-                df_intra = ticker.history(period="1mo", interval="15m") 
-                if not df_intra.empty:
-                    df_intra.columns = [c.lower() for c in df_intra.columns]
-                    df_today = df_intra[df_intra.index.strftime('%Y-%m-%d') == date]
-                    for idx, row in df_today.iterrows():
-                        if row['close'] > daily_tsl:
-                            timestamp = idx.strftime('%Y-%m-%d %H:%M:%S')
-                            break
-            except Exception:
-                pass
+            # Optimization: Use daily date to avoid extra network call
+            timestamp = f"{date} 15:30:00"
 
             # Calculate Trend Prediction
+            # Pass df_daily to avoid re-fetching
             tech_data = get_technical_analysis(symbol, df=df_daily)
             trend_pred = tech_data['prediction'] if tech_data else "Neutral"
             
-            # DETERMINE SIGNAL STRENGTH (Standard vs Sniper)
-            # Sniper Criteria: Price > 200 EMA, RSI 40-70, Vol > 1.5x Avg
+            # DETERMINE SIGNAL STRENGTH
             strength = "Standard"
             try:
-                # EMA 200
                 ema_200 = ta.ema(df_daily['close'], length=200).iloc[-1]
-                # RSI
                 rsi = ta.rsi(df_daily['close'], length=14).iloc[-1]
-                # Volume
                 vol_avg = df_daily['volume'].rolling(window=20).mean().iloc[-1]
                 vol_curr = df_daily['volume'].iloc[-1]
                 
@@ -127,26 +107,10 @@ def process_stock(symbol, strategy_type='all'):
 
         # --- Handle Golden Crossover Signals ---
         if golden_signal == 'BUY':
-            # For GC, we just use the latest date/price
             price = df_daily['close'].iloc[-1]
             date = df_daily.index[-1].strftime('%Y-%m-%d')
             
-            # Check if we already have a Standard/Sniper signal for this date to avoid clutter?
-            # Or just add it as a separate entry. The DB allows multiple signals if details differ?
-            # add_signal checks (symbol, date). If we want to store BOTH, we might need to differentiate.
-            # But usually, if it's a GC, it's a strong signal on its own.
-            # Let's save it with strength='Golden Crossover'
-            
-            # We need to be careful not to overwrite a Sniper signal if it happened same day.
-            # But add_signal prevents duplicates based on (symbol, date).
-            # If we want to support multiple signal types per day, we'd need to change DB schema or logic.
-            # For now, let's assume if it's Sniper/Standard, that takes precedence for "Signal Date".
-            # BUT Golden Crossover is a long term signal.
-            
-            # Let's try to add it. If it fails (duplicate), so be it.
-            # Actually, we should probably check if we just added a signal above.
-            
-            if last_signal != 'BUY': # Only add GC if we didn't just add a TSL buy
+            if last_signal != 'BUY': 
                  tech_data = get_technical_analysis(symbol, df=df_daily)
                  trend_pred = tech_data['prediction'] if tech_data else "Neutral"
                  add_signal(symbol, price, date, trend_pred, signal_strength="Golden Crossover")
@@ -158,11 +122,16 @@ def process_stock(symbol, strategy_type='all'):
                     'Trend': trend_pred,
                     'Strength': "Golden Crossover"
                  }
-
             
-    except Exception:
+    except Exception as e:
+        # print(f"Error processing {symbol}: {e}")
         return None
     return None
+
+def chunk_list(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
 
 def scan_stocks(strategy_type='all'):
     print(f"--- Starting Algo Scanner ({strategy_type.upper()}) ---")
@@ -171,18 +140,69 @@ def scan_stocks(strategy_type='all'):
     symbols = load_stock_list()
     print(f"Loaded {len(symbols)} stocks to scan.")
     
-    # 2. Iterate and Scan with Multithreading
-    # Max workers = 10 to avoid hitting rate limits too hard but still be fast
-    print("Scanning... (This may take a while for large lists)")
+    # 2. Batch Download and Process
+    # Reduced chunk size to avoid Rate Limiting
+    chunk_size = 20
+    print(f"Scanning in batches of {chunk_size}...")
     
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        # Submit all tasks
-        future_to_symbol = {executor.submit(process_stock, sym, strategy_type): sym for sym in symbols}
-        
-        # Process results as they complete with a progress bar
-        for future in tqdm(as_completed(future_to_symbol), total=len(symbols), unit="stock"):
-            # Results are already saved to DB in process_stock
-            pass
+    total_processed = 0
+    
+    # Create a progress bar
+    pbar = tqdm(total=len(symbols), unit="stock")
+    
+    for chunk in chunk_list(symbols, chunk_size):
+        try:
+            # Download batch
+            # group_by='ticker' ensures we get a hierarchical index (Ticker -> OHLC)
+            # threads=True uses yfinance's internal threading for download
+            # auto_adjust=True to fix warning and ensure we get adjusted close
+            data = yf.download(chunk, period="1y", interval="1d", group_by='ticker', threads=True, progress=False, auto_adjust=True)
+            
+            if data.empty:
+                pbar.update(len(chunk))
+                time.sleep(1) # Wait a bit even on failure
+                continue
+                
+            # Process each symbol in the chunk
+            for symbol in chunk:
+                try:
+                    df_sym = pd.DataFrame()
+                    
+                    if isinstance(data.columns, pd.MultiIndex):
+                        # Extract data for this symbol
+                        try:
+                            df_sym = data.xs(symbol, level=0, axis=1)
+                        except KeyError:
+                            # Symbol might have failed to download
+                            continue
+                    else:
+                        # If only one symbol was downloaded and it's not MultiIndex
+                        if len(chunk) == 1 and chunk[0] == symbol:
+                            df_sym = data
+                        else:
+                            continue
+                    
+                    # Drop rows with all NaNs
+                    df_sym = df_sym.dropna(how='all')
+                    
+                    if not df_sym.empty:
+                        process_stock_data(symbol, df_sym, strategy_type)
+                        
+                except Exception as e:
+                    pass
+                
+                total_processed += 1
+                pbar.update(1)
+            
+            # Sleep to avoid Rate Limiting
+            time.sleep(2)
+                
+        except Exception as e:
+            print(f"Batch download error: {e}")
+            pbar.update(len(chunk))
+            time.sleep(5) # Longer wait on error
+            
+    pbar.close()
 
     print("\n--- Scan Complete ---")
     print("Check the Dashboard for results.")

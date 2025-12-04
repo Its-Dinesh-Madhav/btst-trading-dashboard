@@ -19,40 +19,36 @@ def calculate_strategy_indicators(df):
     df['sup'] = df['low'].rolling(window=no).min()
 
     # 2. Calculate Trend State (avd, avn) and TSL
-    df['avn'] = 0
-    df['tsl'] = 0.0
+    # Vectorized approach
     
-    close = df['close'].values
-    res = df['res'].values
-    sup = df['sup'].values
-    avn = np.zeros(len(df), dtype=int)
-    tsl = np.zeros(len(df))
+    # Shift to get previous values (avoid lookahead)
+    df['prev_res'] = df['res'].shift(1)
+    df['prev_sup'] = df['sup'].shift(1)
     
-    curr_avn = 0
+    # Calculate avd (1 if close > prev_res, -1 if close < prev_sup, else 0)
+    # We use 0 as default, then forward fill
     
-    for i in range(no, len(df)):
-        prev_res = res[i-1]
-        prev_sup = sup[i-1]
-        curr_close = close[i]
-        
-        avd = 0
-        if curr_close > prev_res:
-            avd = 1
-        elif curr_close < prev_sup:
-            avd = -1
-            
-        if avd != 0:
-            curr_avn = avd
-        
-        avn[i] = curr_avn
-        
-        if curr_avn == 1:
-            tsl[i] = sup[i]
-        else:
-            tsl[i] = res[i]
+    conditions = [
+        (df['close'] > df['prev_res']),
+        (df['close'] < df['prev_sup'])
+    ]
+    choices = [1, -1]
+    
+    # Create a series for avd with NaNs where condition is not met
+    # This allows us to ffill() to simulate "valuewhen"
+    df['avd_raw'] = np.select(conditions, choices, default=np.nan)
+    
+    # Forward fill to get avn (last non-zero avd)
+    df['avn'] = df['avd_raw'].ffill().fillna(0).astype(int)
+    
+    # Calculate TSL based on avn
+    # If avn == 1 (Uptrend), TSL = prev_sup
+    # If avn == -1 (Downtrend), TSL = prev_res
+    df['tsl'] = np.where(df['avn'] == 1, df['prev_sup'], df['prev_res'])
+    
+    # Clean up temporary columns
+    df.drop(columns=['prev_res', 'prev_sup', 'avd_raw'], inplace=True)
 
-    df['tsl'] = tsl
-    df['avn'] = avn
     return df
 
 def check_buy_signal(df):

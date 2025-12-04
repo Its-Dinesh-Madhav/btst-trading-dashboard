@@ -7,15 +7,11 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
-def process_swing_stock(symbol, strategy_type='all'):
+def process_swing_stock_data(symbol, df, strategy_type='all'):
     """
-    Fetches data and checks for swing signals.
+    Checks for swing signals on a pre-fetched DataFrame.
     """
     try:
-        # 1. Fetch Daily Data (Need at least 200 days for EMA 200)
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(period="1y", interval="1d")
-        
         if df.empty or len(df) < 50:
             return None
             
@@ -53,19 +49,68 @@ def process_swing_stock(symbol, strategy_type='all'):
         return None
     return None
 
+def chunk_list(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
 def scan_swing_stocks(strategy_type='all'):
     print(f"--- Starting Swing Scanner ({strategy_type.upper()}) ---")
     
     symbols = load_stock_list()
     print(f"Loaded {len(symbols)} stocks to scan.")
-    print("Scanning... (This may take a while)")
     
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_symbol = {executor.submit(process_swing_stock, sym, strategy_type): sym for sym in symbols}
-        
-        for future in tqdm(as_completed(future_to_symbol), total=len(symbols), unit="stock"):
-            pass
+    # Batch Download
+    chunk_size = 20
+    print(f"Scanning in batches of {chunk_size}...")
+    
+    pbar = tqdm(total=len(symbols), unit="stock")
+    
+    import time
+    
+    for chunk in chunk_list(symbols, chunk_size):
+        try:
+            # Download batch (Need 1y for EMA 200)
+            data = yf.download(chunk, period="1y", interval="1d", group_by='ticker', threads=True, progress=False, auto_adjust=True)
+            
+            if data.empty:
+                pbar.update(len(chunk))
+                time.sleep(1)
+                continue
+                
+            for symbol in chunk:
+                try:
+                    df_sym = pd.DataFrame()
+                    
+                    if isinstance(data.columns, pd.MultiIndex):
+                        try:
+                            df_sym = data.xs(symbol, level=0, axis=1)
+                        except KeyError:
+                            continue
+                    else:
+                        if len(chunk) == 1 and chunk[0] == symbol:
+                            df_sym = data
+                        else:
+                            continue
+                    
+                    df_sym = df_sym.dropna(how='all')
+                    
+                    if not df_sym.empty:
+                        process_swing_stock_data(symbol, df_sym, strategy_type)
+                        
+                except Exception:
+                    pass
+                
+                pbar.update(1)
+            
+            time.sleep(2)
+                
+        except Exception as e:
+            print(f"Batch error: {e}")
+            pbar.update(len(chunk))
+            time.sleep(5)
 
+    pbar.close()
     print("\n--- Swing Scan Complete ---")
 
 if __name__ == "__main__":

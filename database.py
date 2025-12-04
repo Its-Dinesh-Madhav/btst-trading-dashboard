@@ -2,7 +2,7 @@ import sqlite3
 from datetime import datetime
 import os
 
-DB_FILE = "signals.db"
+DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals.db")
 
 def init_db():
     """Initializes the database and creates the table if it doesn't exist."""

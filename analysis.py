@@ -52,16 +52,30 @@ def get_stock_news_sentiment(symbol):
 # Helper functions for additional technical analysis
 # ---------------------------------------------------------------------------
 
-def _weekly_ema_trend(symbol):
+def _weekly_ema_trend(symbol, df=None):
     """Calculate weekly EMA-50 and return a simple trend label."""
     try:
-        ticker = yf.Ticker(symbol)
-        weekly = ticker.history(period="1y", interval="1wk")
+        if df is not None and not df.empty:
+            # Resample daily to weekly
+            weekly = df.resample('W').agg({
+                'open': 'first',
+                'high': 'max',
+                'low': 'min',
+                'close': 'last',
+                'volume': 'sum'
+            })
+        else:
+            ticker = yf.Ticker(symbol)
+            weekly = ticker.history(period="1y", interval="1wk")
+            
         if weekly.empty:
             return "Sideways"
+            
         weekly['ema50'] = weekly['close'].ewm(span=50, adjust=False).mean()
+        
         if len(weekly) < 2:
              return "Sideways"
+             
         # Compare last two EMA values
         if weekly['ema50'].iloc[-1] > weekly['ema50'].iloc[-2]:
             return "Uptrend"
@@ -72,10 +86,22 @@ def _weekly_ema_trend(symbol):
     except Exception:
         return "Sideways"
 
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def _load_sector_map(path="sector_mapping.csv"):
+    try:
+        return pd.read_csv(path)
+    except Exception:
+        return pd.DataFrame()
+
 def _sector_lookup(symbol, mapping_path="sector_mapping.csv"):
     """Return sector name for a given symbol using a CSV mapping."""
     try:
-        df = pd.read_csv(mapping_path)
+        df = _load_sector_map(mapping_path)
+        if df.empty:
+            return "Unknown"
+            
         row = df.loc[df['symbol'] == symbol]
         if not row.empty:
             return row.iloc[0]['sector']
@@ -194,59 +220,74 @@ def get_sector_performance(limit=50):
             return pd.DataFrame()
             
         # 2. Batch Download
-        # threads=True uses yfinance's internal threading
-        data = yf.download(symbols, period="5d", progress=False)
-        
-        # yfinance returns a MultiIndex DataFrame if multiple symbols:
-        # Columns: (Price, Ticker) e.g. ('Close', 'RELIANCE.NS')
-        # Or just (Price) if single symbol.
-        
+        # Use chunks to avoid Rate Limiting
+        chunk_size = 20
         results = []
         
-        # Check if we got data
-        if data.empty:
-            return pd.DataFrame()
-            
-        # Extract Close prices
-        try:
-            close_data = data['Close']
-        except KeyError:
-            # Fallback if 'Close' not found (sometimes lowercase 'close')
-            if 'close' in data.columns:
-                close_data = data['close']
-            else:
-                return pd.DataFrame()
+        import time
+        
+        # Helper to chunk list
+        def chunk_list(lst, n):
+            for i in range(0, len(lst), n):
+                yield lst[i:i + n]
 
-        for sym in symbols:
+        for chunk in chunk_list(symbols, chunk_size):
             try:
-                # Get series for this symbol
-                if isinstance(close_data, pd.DataFrame) and sym in close_data.columns:
-                    series = close_data[sym]
-                elif isinstance(close_data, pd.Series) and len(symbols) == 1:
-                    series = close_data
-                else:
-                    continue
-                    
-                # Drop NaNs
-                series = series.dropna()
+                # threads=True uses yfinance's internal threading
+                data = yf.download(chunk, period="5d", progress=False, auto_adjust=True)
                 
-                if len(series) >= 2:
-                    curr = series.iloc[-1]
-                    prev = series.iloc[-2]
-                    
-                    if curr == 0 or pd.isna(curr) or pd.isna(prev):
+                if data.empty:
+                    time.sleep(1)
+                    continue
+                
+                # Extract Close prices
+                try:
+                    close_data = data['Close']
+                except KeyError:
+                    if 'close' in data.columns:
+                        close_data = data['close']
+                    else:
                         continue
+
+                for sym in chunk:
+                    try:
+                        # Get series for this symbol
+                        if isinstance(close_data, pd.DataFrame):
+                            if sym in close_data.columns:
+                                series = close_data[sym]
+                            else:
+                                continue
+                        elif isinstance(close_data, pd.Series) and len(chunk) == 1:
+                            series = close_data
+                        else:
+                            continue
+                            
+                        # Drop NaNs
+                        series = series.dropna()
                         
-                    change = ((curr - prev) / prev) * 100
-                    sector = _sector_lookup(sym)
-                    
-                    results.append({
-                        'Symbol': sym, 
-                        'Sector': sector, 
-                        'Change': change, 
-                        'Price': float(curr)
-                    })
+                        if len(series) >= 2:
+                            curr = series.iloc[-1]
+                            prev = series.iloc[-2]
+                            
+                            if curr == 0 or pd.isna(curr) or pd.isna(prev):
+                                continue
+                                
+                            change = ((curr - prev) / prev) * 100
+                            sector = _sector_lookup(sym)
+                            
+                            results.append({
+                                'Symbol': sym, 
+                                'Sector': sector, 
+                                'Change': change, 
+                                'Price': float(curr)
+                            })
+                    except Exception:
+                        continue
+                
+                time.sleep(2) # Delay between chunks
+                
             except Exception:
+                time.sleep(2)
                 continue
                     
         return pd.DataFrame(results)
@@ -389,7 +430,7 @@ def get_technical_analysis(symbol, df=None):
             'prediction': trend_prediction,
             'current_price': current_price,
             # New Metrics
-            'weekly_trend': _weekly_ema_trend(symbol),
+            'weekly_trend': _weekly_ema_trend(symbol, df),
             'sector': _sector_lookup(symbol),
             'vwap': _vwap(df),
             'atr': _atr(df),

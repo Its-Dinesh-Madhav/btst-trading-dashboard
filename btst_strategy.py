@@ -18,7 +18,7 @@ def get_btst_candidates(limit=50):
             return pd.DataFrame()
             
         # 2. Batch Download Data (Need enough for indicators)
-        data = yf.download(symbols, period="6mo", progress=False)
+        data = yf.download(symbols, period="6mo", progress=False, auto_adjust=True)
         
         candidates = []
         
@@ -108,7 +108,7 @@ def get_btst_candidates(limit=50):
                     model = RandomForestClassifier(n_estimators=50, max_depth=3, random_state=42)
                     model.fit(X, y)
                     
-                    curr_feat = [[rsi_val, vol_ratio, close_pos]]
+                    curr_feat = pd.DataFrame([[rsi_val, vol_ratio, close_pos]], columns=['rsi', 'vol_ratio', 'close_pos'])
                     prob = model.predict_proba(curr_feat)[0][1] * 100
                 
                 # Add AI contribution to score (Max 25 points)

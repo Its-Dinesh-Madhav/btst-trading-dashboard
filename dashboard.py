@@ -29,11 +29,7 @@ st.markdown("Real-time signals based on **Accurate Swing Trading System**")
 # Sidebar controls
 st.sidebar.header("Scanner Controls")
 
-if st.sidebar.button("🚀 Run Full Scan"):
-    st.sidebar.info("Starting scan... check terminal for progress.")
-    # Run scanner.py in a separate process
-    subprocess.Popen([sys.executable, "scanner.py"])
-    st.sidebar.success("Scanner started in background!")
+# Filter Section
 
 # Filter Section
 st.sidebar.header("Filters")
@@ -258,6 +254,27 @@ with tab_scanner:
 
     with col_main:
         st.subheader("Live Buy Signals (Standard)")
+        
+        # --- Scan Controls ---
+        # Simplified layout for better visibility
+        st.write("### Control Panel")
+        c_ctrl1, c_ctrl2 = st.columns([1, 1])
+        
+        with c_ctrl1:
+            scan_strategy = st.selectbox("Select Strategy", ["All", "Sniper", "Golden"], key="scan_strat_main")
+            
+        with c_ctrl2:
+            # Align button with selectbox
+            st.write("") 
+            st.write("")
+            if st.button("🚀 START SCANNING", type="primary", use_container_width=True):
+                st.info(f"Starting {scan_strategy} scan... This will take ~1-2 minutes.")
+                strategy_arg = scan_strategy.lower()
+                subprocess.Popen([sys.executable, "scanner.py", "--strategy", strategy_arg])
+                st.success("Scanner started! Results will appear below.")
+                
+        st.divider()
+
         # Fetch data
         signals = get_recent_signals(limit=500)
 
@@ -352,7 +369,7 @@ with tab_scanner:
                 selected_index = event.selection.rows[0]
                 selected_stock = df.iloc[selected_index]['Symbol']
         else:
-            st.info("No signals found yet. Click 'Run Full Scan' to start.")
+            st.info("No active buy signals found yet. Click 'START SCANNING' to run a new scan.")
             selected_stock = None
             
             # Allow search even if no signals
@@ -531,5 +548,5 @@ with tab_watchlist:
 
 # Auto-refresh logic
 if auto_refresh:
-    time.sleep(10) # Slower refresh to allow reading details
+    time.sleep(3) # Faster refresh for "instant" feel
     st.rerun()
