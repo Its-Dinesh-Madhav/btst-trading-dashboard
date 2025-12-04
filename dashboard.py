@@ -297,7 +297,7 @@ with tab_scanner:
         c_ctrl1, c_ctrl2 = st.columns([1, 1])
         
         with c_ctrl1:
-            scan_strategy = st.selectbox("Select Strategy", ["All", "Sniper", "Golden"], key="scan_strat_main")
+            scan_strategy = st.selectbox("Select Strategy", ["All", "Standard (TSL)", "Sniper", "Golden"], key="scan_strat_main")
             
         with c_ctrl2:
             # Align button with selectbox
@@ -305,7 +305,16 @@ with tab_scanner:
             st.write("")
             if st.button("🚀 START SCANNING", type="primary", use_container_width=True):
                 st.info(f"Starting {scan_strategy} scan... This will take ~1-2 minutes.")
-                strategy_arg = scan_strategy.lower()
+                
+                # Map UI selection to script argument
+                strategy_arg = "all"
+                if "Standard" in scan_strategy:
+                    strategy_arg = "standard"
+                elif "Sniper" in scan_strategy:
+                    strategy_arg = "sniper"
+                elif "Golden" in scan_strategy:
+                    strategy_arg = "golden"
+                    
                 subprocess.Popen([sys.executable, "scanner.py", "--strategy", strategy_arg])
                 st.success("Scanner started! Results will appear below.")
                 

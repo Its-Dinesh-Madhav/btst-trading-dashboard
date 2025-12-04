@@ -44,9 +44,9 @@ def process_stock_data(symbol, df_daily, strategy_type='all'):
             curr = df_daily.iloc[i]
             prev = df_daily.iloc[i - 1]
             
-            # Sniper Strategy Checks
-            if strategy_type in ['all', 'sniper']:
-                # Sniper Buy Crossover
+            # Sniper / Standard Strategy Checks (TSL)
+            if strategy_type in ['all', 'standard', 'sniper']:
+                # Buy Crossover
                 if (prev['close'] < prev['tsl']) and (curr['close'] > curr['tsl']):
                     last_signal = 'BUY'
                     signal_details = {
@@ -54,7 +54,7 @@ def process_stock_data(symbol, df_daily, strategy_type='all'):
                         'date': curr.name.strftime('%Y-%m-%d'),
                         'tsl': curr['tsl']
                     }
-                # Sniper Sell Crossunder
+                # Sell Crossunder
                 elif (prev['close'] > prev['tsl']) and (curr['close'] < curr['tsl']):
                     last_signal = 'SELL'
             
@@ -67,7 +67,7 @@ def process_stock_data(symbol, df_daily, strategy_type='all'):
         
         # 4. Action based on Signals
         
-        # --- Handle TSL / Sniper Signals ---
+        # --- Handle TSL / Sniper / Standard Signals ---
         if last_signal == 'SELL':
             remove_signal(symbol)
             
@@ -76,11 +76,9 @@ def process_stock_data(symbol, df_daily, strategy_type='all'):
             date = signal_details['date']
             
             # Find Exact Trigger Time
-            # Optimization: Use daily date to avoid extra network call
             timestamp = f"{date} 15:30:00"
 
             # Calculate Trend Prediction
-            # Pass df_daily to avoid re-fetching
             tech_data = get_technical_analysis(symbol, df=df_daily)
             trend_pred = tech_data['prediction'] if tech_data else "Neutral"
             
@@ -96,6 +94,11 @@ def process_stock_data(symbol, df_daily, strategy_type='all'):
                     strength = "Sniper"
             except Exception:
                 pass
+            
+            # STRICT FILTERING FOR SNIPER STRATEGY
+            if strategy_type == 'sniper' and strength != 'Sniper':
+                return None
+            
             # Save to DB (add_signal handles duplicates, so safe to call again)
             add_signal(symbol, price, date, trend_pred, timestamp=timestamp, signal_strength=strength)
             print(f"✅ FOUND SIGNAL: {symbol} ({strength}) at {price}")
@@ -210,7 +213,7 @@ def scan_stocks(strategy_type='all'):
     pbar.close()
 
     print("\n--- Scan Summary ---")
-    print(f"Stocks with Data: {total_processed}")
+    print(f"Stocks Processed: {total_processed}")
     print(f"Stocks w/o Data:  {len(symbols) - total_processed}") # This is an approximation, better to track explicitly
     print(f"Signals Found:    N/A (needs explicit tracking in process_stock_data)") # This needs to be tracked
     print("--------------------")
@@ -219,8 +222,8 @@ def scan_stocks(strategy_type='all'):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run Algo Scanner')
     parser.add_argument('--strategy', type=str, default='all', 
-                        choices=['all', 'sniper', 'golden'],
-                        help='Strategy to scan for: all, sniper, or golden')
+                        choices=['all', 'standard', 'sniper', 'golden'],
+                        help='Strategy to scan for: all, standard, sniper, or golden')
     
     args = parser.parse_args()
     scan_stocks(strategy_type=args.strategy)
