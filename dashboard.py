@@ -9,6 +9,7 @@ from streamlit_lightweight_charts import renderLightweightCharts
 from forecasting import get_ai_price_prediction
 from btst_strategy import get_btst_candidates
 from reversal_strategy import get_reversal_candidates
+from breakout_strategy import get_breakout_candidates
 from stock_list import load_stock_list
 import subprocess
 import sys
@@ -136,6 +137,54 @@ with tab_pred:
                 )
             else:
                 st.warning("No strong reversal signals found today.")
+
+    st.divider()
+
+    # --- 3-STEP BREAKOUT STRATEGY SECTION ---
+    st.subheader("🚀 3-Step Breakout Candidates")
+    
+    with st.expander("📖 Learn the 3-Step Methodology"):
+        st.markdown("""
+        **The 3-Step Methodology for Identifying Breakout Candidates**
+
+        **Step 1: The Foundation (Fundamental Strength)**
+        *   Focus on established companies (Market Cap > ₹10k Cr).
+        *   Consistent Growth (Revenue/Profit > 15%).
+        *   High Efficiency (ROE > 15%).
+        *   *Note: This scanner assumes the stock list contains fundamentally decent stocks.*
+
+        **Step 2: The Setup (Healthy Pullback)**
+        *   **Uptrend:** Price > 50 DMA & 200 DMA.
+        *   **Dip:** Short-term pullback to a key support level (20 DMA or 50 DMA).
+        *   **Volume:** Low volume during the pullback (weak selling).
+
+        **Step 3: The Trigger (Pre-Breakout Signal)**
+        *   **Candlestick:** Hammer, Dragonfly Doji, Bullish Engulfing, or Morning Star at support.
+        *   **Confirmation:** Volume higher than average on the signal day.
+        """)
+
+    if st.button("🚀 Scan for 3-Step Breakouts"):
+        with st.spinner("Analyzing Trends, Pullbacks, and Patterns..."):
+            df_breakout = get_breakout_candidates(limit=50)
+            
+            if not df_breakout.empty:
+                st.success(f"Found {len(df_breakout)} potential breakout candidates!")
+                
+                st.dataframe(
+                    df_breakout[['Symbol', 'Price', 'Support', 'Patterns', 'Volume', 'Score']],
+                    use_container_width=True,
+                    column_config={
+                        "Price": st.column_config.NumberColumn(format="₹%.2f"),
+                        "Score": st.column_config.ProgressColumn(
+                            "Confidence Score",
+                            format="%d",
+                            min_value=0,
+                            max_value=3,
+                        ),
+                    }
+                )
+            else:
+                st.warning("No stocks met the strict 3-Step criteria today.")
 
 with tab_sniper:
     st.subheader("🎯 Sniper Signals (High Accuracy)")
