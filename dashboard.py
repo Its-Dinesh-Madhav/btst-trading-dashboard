@@ -8,6 +8,7 @@ from plotting import plot_stock_chart
 from streamlit_lightweight_charts import renderLightweightCharts
 from forecasting import get_ai_price_prediction
 from btst_strategy import get_btst_candidates
+from reversal_strategy import get_reversal_candidates
 from stock_list import load_stock_list
 import subprocess
 import sys
@@ -107,6 +108,34 @@ with tab_pred:
                 st.warning("No stocks met the criteria. Market might be very weak.")
     else:
         st.info("Click the button to scan for stocks likely to give profits tomorrow.")
+
+    st.divider()
+    
+    # --- REVERSAL STRATEGY SECTION ---
+    st.subheader("🔄 Reversal / Breakout Candidates")
+    st.markdown("""
+    **Strategy:** Identifies stocks in a **downtrend** that are showing strong signs of **reversal** today.
+    *Look for Volume Spikes + RSI Recovery.*
+    """)
+    
+    if st.button("🔄 Scan for Reversal Candidates"):
+        with st.spinner("Scanning for potential reversals..."):
+            df_rev = get_reversal_candidates(limit=50)
+            
+            if not df_rev.empty:
+                st.success(f"Found {len(df_rev)} potential reversal stocks!")
+                
+                st.dataframe(
+                    df_rev[['Symbol', 'Price', 'Change %', 'RSI', 'Volume', 'Reason']],
+                    use_container_width=True,
+                    column_config={
+                        "Price": st.column_config.NumberColumn(format="₹%.2f"),
+                        "Change %": st.column_config.NumberColumn(format="%.2f%%"),
+                        "RSI": st.column_config.NumberColumn(format="%.1f"),
+                    }
+                )
+            else:
+                st.warning("No strong reversal signals found today.")
 
 with tab_sniper:
     st.subheader("🎯 Sniper Signals (High Accuracy)")
