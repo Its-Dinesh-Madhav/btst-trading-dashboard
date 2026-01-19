@@ -11,6 +11,7 @@ from btst_strategy import get_btst_candidates
 from reversal_strategy import get_reversal_candidates
 from breakout_strategy import get_breakout_candidates
 from stock_list import load_stock_list, get_nifty50_symbols, get_nifty100_symbols
+from database import get_active_paper_trades, get_paper_trade_history, get_todays_trade_count, close_paper_trade
 import subprocess
 import sys
 
@@ -78,7 +79,7 @@ with st.sidebar.expander("🔧 System Debug Info"):
 # Main Content
 # Main Content
 # Main Content
-tab_scanner, tab_sniper, tab_golden, tab_watchlist, tab_market, tab_pred = st.tabs(["📡 Scanner", "🎯 Sniper Signals", "🏅 Golden Crossover", "⭐ Watchlist", "🌍 Market Overview", "🔮 Tomorrow's Prediction"])
+tab_scanner, tab_sniper, tab_golden, tab_paper, tab_watchlist, tab_market, tab_pred = st.tabs(["📡 Scanner", "🎯 Sniper Signals", "🏅 Golden Crossover", "📝 Paper Trading", "⭐ Watchlist", "🌍 Market Overview", "🔮 Tomorrow's Prediction"])
 
 with tab_pred:
     st.subheader("🚀 BTST (Buy Today, Sell Tomorrow) Predictor")
@@ -323,7 +324,75 @@ with tab_golden:
     else:
         st.info("No signals found. These signals indicate potential long-term uptrends.")
 
-with tab_market:
+    else:
+        st.info("No signals found. These signals indicate potential long-term uptrends.")
+
+with tab_paper:
+    st.subheader("📝 Automated Paper Trading (Simulated)")
+    
+    # --- Control Panel ---
+    c_p1, c_p2 = st.columns([1, 2])
+    
+    with c_p1:
+        st.write("#### 🤖 Auto Trader Control")
+        # Check if running
+        # Simple check using pgrep or similar for demo, or lockfile
+        # For Streamlit, we toggle state
+        
+        if st.button("🚀 START Auto Trader"):
+            subprocess.Popen([sys.executable, "auto_trader.py"])
+            st.success("Auto Trader started in background!")
+            
+        if st.button("🛑 STOP Auto Trader"):
+            # This is tricky without strict PID management. 
+            # For now, we instruct user or use generic kill (unsafe in shared env, but ok for local)
+            st.warning("To stop, please terminate the terminal process for 'auto_trader.py'")
+    
+    with c_p2:
+        st.write("#### 📊 Performance Today")
+        p1, p2, p3 = st.columns(3)
+        trades_today = get_todays_trade_count()
+        active = get_active_paper_trades()
+        
+        p1.metric("Trades Today", f"{trades_today}/2")
+        p2.metric("Active Positions", len(active))
+        
+        # Calc Unreliability Net PnL (Closed)
+        history = get_paper_trade_history(100)
+        total_pnl = sum([h['pnl'] for h in history if h['pnl'] is not None])
+        p3.metric("Total Realized P&L", f"₹{total_pnl:.2f}", delta=total_pnl)
+
+    st.divider()
+    
+    # --- Active Positions ---
+    st.write("### 🟢 Active Positions")
+    if active:
+        active_df = pd.DataFrame(active)
+        # Add Live PnL (Simulated fetch)
+        # In real app, we'd fetch live price here.
+        
+        st.dataframe(
+            active_df[['symbol', 'entry_price', 'quantity', 'stop_loss', 'entry_time', 'strategy']],
+            use_container_width=True
+        )
+        
+        # Manual Close Option
+        st.write("Current prices update on refresh.")
+    else:
+        st.info("No active positions currently.")
+
+    st.divider()
+    
+    # --- Trade History ---
+    st.write("### 📜 Trade History")
+    if history:
+        hist_df = pd.DataFrame(history)
+        st.dataframe(
+            hist_df[['symbol', 'entry_price', 'exit_price', 'pnl', 'entry_time', 'exit_time', 'reason']],
+            use_container_width=True
+        )
+    else:
+        st.info("No trade history available.")
     col_m1, col_m2 = st.columns([2, 1])
     
     with col_m1:

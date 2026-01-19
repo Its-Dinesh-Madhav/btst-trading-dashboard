@@ -27,7 +27,33 @@ def init_db():
     # Run migration to ensure column exists in old DBs
     migrate_db()
     init_portfolio_db()
+    init_portfolio_db()
     init_swing_db()
+    init_paper_trading_db()
+
+def init_paper_trading_db():
+    """Creates the paper_trades table."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS paper_trades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol TEXT NOT NULL,
+            entry_price REAL NOT NULL,
+            quantity INTEGER NOT NULL,
+            stop_loss REAL NOT NULL,
+            target REAL,
+            status TEXT DEFAULT 'OPEN', -- OPEN, CLOSED
+            entry_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+            exit_time DATETIME,
+            exit_price REAL,
+            pnl REAL,
+            strategy TEXT DEFAULT 'Standard',
+            reason TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
 def init_swing_db():
     """Creates the swing_signals table."""
@@ -234,6 +260,74 @@ def get_swing_signals(strategy_type=None, limit=100):
     rows = c.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+    conn.close()
+    return [dict(row) for row in rows]
+
+# --- Paper Trading Functions ---
+
+def add_paper_trade(symbol, entry_price, quantity, stop_loss, target=None, strategy='Standard', reason=''):
+    """Records a new paper trade entry."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO paper_trades (symbol, entry_price, quantity, stop_loss, target, strategy, reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (symbol, entry_price, quantity, stop_loss, target, strategy, reason))
+    conn.commit()
+    conn.close()
+
+def get_active_paper_trades():
+    """Fetches all OPEN paper trades."""
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM paper_trades WHERE status = 'OPEN'")
+    rows = c.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def close_paper_trade(trade_id, exit_price, pnl, exit_time=None):
+    """Closes a paper trade."""
+    if not exit_time:
+        exit_time = datetime.now()
+        
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''
+        UPDATE paper_trades 
+        SET status = 'CLOSED', exit_price = ?, pnl = ?, exit_time = ?
+        WHERE id = ?
+    ''', (exit_price, pnl, exit_time, trade_id))
+    conn.commit()
+    conn.close()
+
+def get_paper_trade_history(limit=50):
+    """Fetches closed paper trades."""
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute('''
+        SELECT * FROM paper_trades 
+        WHERE status = 'CLOSED' 
+        ORDER BY exit_time DESC 
+        LIMIT ?
+    ''', (limit,))
+    rows = c.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+    
+def get_todays_trade_count():
+    """Returns the number of trades executed today."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    # SQLITE 'now', 'localtime' might depend on server time, usually safer to query string match
+    # Or just check entries since midnight.
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    c.execute("SELECT count(*) FROM paper_trades WHERE date(entry_time) = ?", (date_str,))
+    count = c.fetchone()[0]
+    conn.close()
+    return count
 
 # Initialize on module load
 init_db()
