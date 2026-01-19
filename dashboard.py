@@ -324,8 +324,6 @@ with tab_golden:
     else:
         st.info("No signals found. These signals indicate potential long-term uptrends.")
 
-    else:
-        st.info("No signals found. These signals indicate potential long-term uptrends.")
 
 with tab_paper:
     st.subheader("📝 Automated Paper Trading (Simulated)")
@@ -393,6 +391,8 @@ with tab_paper:
         )
     else:
         st.info("No trade history available.")
+
+with tab_market:
     col_m1, col_m2 = st.columns([2, 1])
     
     with col_m1:
