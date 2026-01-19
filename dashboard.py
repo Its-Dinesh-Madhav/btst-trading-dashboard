@@ -10,7 +10,7 @@ from forecasting import get_ai_price_prediction
 from btst_strategy import get_btst_candidates
 from reversal_strategy import get_reversal_candidates
 from breakout_strategy import get_breakout_candidates
-from stock_list import load_stock_list
+from stock_list import load_stock_list, get_nifty50_symbols, get_nifty100_symbols
 import subprocess
 import sys
 
@@ -38,6 +38,11 @@ st.sidebar.header("Filters")
 trend_filter = st.sidebar.selectbox(
     "Filter by Trend Prediction",
     ["All", "Strong Uptrend", "Strong Downtrend", "Trending (Direction Unclear)", "Sideways / Choppy", "Neutral"]
+)
+
+universe_filter = st.sidebar.selectbox(
+    "Filter by Stock Universe",
+    ["All", "Nifty 50", "Nifty 100"]
 )
 
 auto_refresh = st.sidebar.checkbox("Auto-refresh Data", value=True)
@@ -430,6 +435,15 @@ with tab_scanner:
             # Apply Trend Filter
             if trend_filter != "All":
                 df = df[df['Trend'].str.contains(trend_filter, na=False)]
+
+            # Apply Universe Filter
+            if universe_filter != "All":
+                if universe_filter == "Nifty 50":
+                    nifty50 = get_nifty50_symbols()
+                    df = df[df['Symbol'].isin(nifty50)]
+                elif universe_filter == "Nifty 100":
+                    nifty100 = get_nifty100_symbols()
+                    df = df[df['Symbol'].isin(nifty100)]
             
             # Sort by Scanned At (Descending) to show recent first
             try:

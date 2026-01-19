@@ -15,6 +15,23 @@ def get_nifty50_symbols():
     ]
     return [f"{sym}.NS" for sym in symbols]
 
+def get_nifty_next50_symbols():
+    """Returns Nifty Next 50 symbols."""
+    symbols = [
+        "ABB", "ADANIENSOL", "ADANIGREEN", "ADANIPOWER", "ATGL", "AMBUJACEM", "BAJAJHLDNG",
+        "BANKBARODA", "BEL", "BERGEPAINT", "BOSCHLTD", "CANBK", "CHOLAFIN", "COLPAL", "DLF",
+        "DMART", "GAIL", "GODREJCP", "HAL", "HAVELLS", "HDFCAMC", "HINDPETRO", "ICICIGI",
+        "ICICIPRULI", "INDIGO", "IOC", "IRCTC", "JINDALSTEL", "JSWENERGY", "LODHA", "MARICO",
+        "MOTHERSON", "NAUKRI", "PIDILITIND", "PIIND", "PNB", "RECLTD", "SBICARD", "SHREECEM",
+        "SIEMENS", "SRF", "TORNTPHARM", "TRENT", "TVSMOTOR", "VEDL", "ZOMATO", "ZYDUSLIFE",
+        "VARUNBEV", "JIOFIN", "BHEL" 
+    ]
+    return [f"{sym}.NS" for sym in symbols]
+
+def get_nifty100_symbols():
+    """Returns Nifty 100 (Nifty 50 + Nifty Next 50) symbols."""
+    return get_nifty50_symbols() + get_nifty_next50_symbols()
+
 def get_all_nse_symbols():
     """
     Attempts to download the full list of active NSE equities.
