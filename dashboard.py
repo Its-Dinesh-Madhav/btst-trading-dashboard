@@ -331,6 +331,9 @@ with tab_paper:
     # --- Control Panel ---
     st.info("ℹ️ **Auto Trader Mode**: Fully Autonomous. Run `python3 auto_trader.py` in your terminal to start the background service.")
     
+    if st.button("🔄 Refresh Data"):
+        st.rerun()
+    
     st.write("#### 📊 Performance Today")
     p1, p2, p3 = st.columns(3)
     trades_today = get_todays_trade_count()
