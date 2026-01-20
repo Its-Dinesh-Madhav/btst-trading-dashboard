@@ -26,6 +26,9 @@ class PaperTrader:
             # Flatten multi-index columns if present (Fix for new yfinance)
             if isinstance(data.columns, pd.MultiIndex):
                 data.columns = [col[0] for col in data.columns]
+            
+            # Ensure lowercase columns
+            data.columns = [c.lower() for c in data.columns]
                 
             return data
         except Exception as e:
@@ -34,9 +37,9 @@ class PaperTrader:
 
     def calculate_atr(self, df, period=14):
         """Calculates ATR."""
-        high = df['High']
-        low = df['Low']
-        close = df['Close'].shift(1)
+        high = df['high']
+        low = df['low']
+        close = df['close'].shift(1)
         
         tr1 = high - low
         tr2 = (high - close).abs()
@@ -52,8 +55,8 @@ class PaperTrader:
         # Ideally, reset at open. Here we approximate or just check price vs daily avg.
         # Let's simple check: Price > Rolling VWAP or just Price > VWAP of last N bars
         
-        v = df['Volume']
-        tp = (df['High'] + df['Low'] + df['Close']) / 3
+        v = df['volume']
+        tp = (df['high'] + df['low'] + df['close']) / 3
         return (tp * v).cumsum() / v.cumsum()
         
     def check_selection_criteria(self, symbol, current_price):
@@ -68,12 +71,15 @@ class PaperTrader:
             daily = yf.download(symbol, period="5d", progress=False)
             if isinstance(daily.columns, pd.MultiIndex):
                 daily.columns = [col[0] for col in daily.columns]
+            
+            # Ensure lowercase columns
+            daily.columns = [c.lower() for c in daily.columns]
                 
             if len(daily) < 2:
                 return False, "Not enough daily data"
                 
-            vol_today = daily['Volume'].iloc[-1]
-            vol_yesterday = daily['Volume'].iloc[-2]
+            vol_today = daily['volume'].iloc[-1]
+            vol_yesterday = daily['volume'].iloc[-2]
             
             # Condition 2: Volume Expansion (or significant strength)
             # If trading early, today's vol might be lower. adjust logic?
@@ -237,7 +243,7 @@ class PaperTrader:
             if df is None:
                 continue
                 
-            current_price = df['Close'].iloc[-1]
+            current_price = df['close'].iloc[-1]
             
             exit_reason = None
             
