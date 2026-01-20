@@ -113,19 +113,20 @@ class PaperTrader:
         except Exception as e:
             return False, f"Error in check: {e}"
 
-    def process_buy_signals(self, signals):
+    def process_buy_signals(self, signals, execute=True):
         """
         Receives a list of dicts: {'symbol': 'INFY.NS', 'price': 1500, ...}
-        Selects best and enters trade.
+        Returns a list of qualified candidates with scores.
+        If execute=True, executes the best one immediately.
         """
         if not signals:
-            return
+            return []
 
         # 0. Check Daily Limit
         trades_today = get_todays_trade_count()
         if trades_today >= self.MAX_TRADES_PER_DAY:
             print("Daily trade limit reached.")
-            return
+            return []
 
         candidates = []
         
@@ -146,19 +147,31 @@ class PaperTrader:
                     'price': price,
                     'score': rsi + (rvol * 10), # Simple weighted score
                     'rsi': rsi,
-                    'rvol': rvol
+                    'rvol': rvol,
+                    'reason': "Qualified"
                 })
             else:
-                pass
-                # print(f"Rejected {symbol}: {reason}")
+                print(f"Rejected {symbol}: {reason}")
         
         # Sort by Score
         candidates.sort(key=lambda x: x['score'], reverse=True)
         
-        # Execute Top Candidate (if any)
-        if candidates and trades_today < self.MAX_TRADES_PER_DAY:
+        if execute and candidates and trades_today < self.MAX_TRADES_PER_DAY:
             best = candidates[0]
             self.execute_trade(best['symbol'], best['price'])
+            
+        return candidates
+
+    def execute_best_candidate(self, candidates):
+        """Executes the best candidate from a list."""
+        trades_today = get_todays_trade_count()
+        if not candidates or trades_today >= self.MAX_TRADES_PER_DAY:
+            return
+            
+        # Re-sort to be sure
+        candidates.sort(key=lambda x: x['score'], reverse=True)
+        best = candidates[0]
+        self.execute_trade(best['symbol'], best['price'])
 
     def execute_trade(self, symbol, entry_price):
         """Calculates size and logs trade."""

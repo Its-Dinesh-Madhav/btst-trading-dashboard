@@ -329,36 +329,20 @@ with tab_paper:
     st.subheader("📝 Automated Paper Trading (Simulated)")
     
     # --- Control Panel ---
-    c_p1, c_p2 = st.columns([1, 2])
+    st.info("ℹ️ **Auto Trader Mode**: Fully Autonomous. Run `python3 auto_trader.py` in your terminal to start the background service.")
     
-    with c_p1:
-        st.write("#### 🤖 Auto Trader Control")
-        # Check if running
-        # Simple check using pgrep or similar for demo, or lockfile
-        # For Streamlit, we toggle state
-        
-        if st.button("🚀 START Auto Trader"):
-            subprocess.Popen([sys.executable, "auto_trader.py"])
-            st.success("Auto Trader started in background!")
-            
-        if st.button("🛑 STOP Auto Trader"):
-            # This is tricky without strict PID management. 
-            # For now, we instruct user or use generic kill (unsafe in shared env, but ok for local)
-            st.warning("To stop, please terminate the terminal process for 'auto_trader.py'")
+    st.write("#### 📊 Performance Today")
+    p1, p2, p3 = st.columns(3)
+    trades_today = get_todays_trade_count()
+    active = get_active_paper_trades()
     
-    with c_p2:
-        st.write("#### 📊 Performance Today")
-        p1, p2, p3 = st.columns(3)
-        trades_today = get_todays_trade_count()
-        active = get_active_paper_trades()
-        
-        p1.metric("Trades Today", f"{trades_today}/2")
-        p2.metric("Active Positions", len(active))
-        
-        # Calc Unreliability Net PnL (Closed)
-        history = get_paper_trade_history(100)
-        total_pnl = sum([h['pnl'] for h in history if h['pnl'] is not None])
-        p3.metric("Total Realized P&L", f"₹{total_pnl:.2f}", delta=total_pnl)
+    p1.metric("Trades Today", f"{trades_today}/2")
+    p2.metric("Active Positions", len(active))
+    
+    # Calc Unreliability Net PnL (Closed)
+    history = get_paper_trade_history(100)
+    total_pnl = sum([h['pnl'] for h in history if h['pnl'] is not None])
+    p3.metric("Total Realized P&L", f"₹{total_pnl:.2f}", delta=total_pnl)
 
     st.divider()
     
