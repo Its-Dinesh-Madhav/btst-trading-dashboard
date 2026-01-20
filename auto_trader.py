@@ -2,6 +2,7 @@ import time
 import schedule
 from scanner import scan_stocks as scan_market
 from paper_trader import PaperTrader
+from database import get_recent_signals, get_todays_trade_count
 import sys
 import logging
 from datetime import datetime
@@ -44,7 +45,7 @@ def job():
         scan_market(strategy_type="standard")
         
         # 4. Fetch Fresh Signals (Last 5 mins)
-        from database import get_recent_signals
+        # 4. Fetch Fresh Signals (Last 5 mins)
         recent_signals = get_recent_signals(limit=20)
         
         # Collect signals that are RECENT (e.g., within last 2 minutes)
