@@ -1,0 +1,16 @@
+2026-01-20 10:43:53,318 - Auto Trader Started.
+2026-01-20 10:43:53,318 - Starting Scan Cycle...
+2026-01-20 10:43:53,319 - Error in cycle: name 'get_todays_trade_count' is not defined
+2026-01-20 10:44:53,531 - Starting Scan Cycle...
+2026-01-20 10:44:53,536 - Error in cycle: name 'get_todays_trade_count' is not defined
+2026-01-20 10:45:26,128 - Auto Trader Started.
+2026-01-20 10:45:26,128 - Starting Scan Cycle...
+2026-01-20 10:47:02,408 - 
+1 Failed download:
+2026-01-20 10:47:02,409 - ['FLUOROCHEM.NS']: TypeError("'NoneType' object is not subscriptable")
+2026-01-20 10:48:24,571 - 
+1 Failed download:
+2026-01-20 10:48:24,571 - ['MAPMYINDIA.NS']: TypeError("'NoneType' object is not subscriptable")
+2026-01-20 10:50:56,763 - Error in cycle: 'NoneType' object has no attribute 'get'
+2026-01-20 10:51:56,999 - Starting Scan Cycle...
+2026-01-20 10:57:15,834 - Error in cycle: 'NoneType' object has no attribute 'get'

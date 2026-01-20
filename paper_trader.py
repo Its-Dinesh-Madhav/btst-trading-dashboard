@@ -139,6 +139,11 @@ class PaperTrader:
             if passed:
                 # Get Scores for Ranking
                 tech = get_technical_analysis(symbol)
+                
+                if tech is None:
+                    print(f"Skipping {symbol}: Could not fetch technical data.")
+                    continue
+                    
                 rsi = tech.get('rsi', 50)
                 rvol = tech.get('rvol', 1)
                 

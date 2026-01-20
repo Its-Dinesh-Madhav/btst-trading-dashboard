@@ -8,8 +8,6 @@ from analysis import get_technical_analysis
 import time
 from datetime import datetime
 import argparse
-import argparse
-import argparse
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
@@ -154,6 +152,7 @@ def scan_stocks(strategy_type='all'):
     print(f"Scanning in batches of {chunk_size}...")
     
     total_processed = 0
+    signals_found_count = 0
     
     # Create a progress bar
     pbar = tqdm(total=len(symbols), unit="stock")
@@ -194,7 +193,9 @@ def scan_stocks(strategy_type='all'):
                     df_sym = df_sym.dropna(how='all')
                     
                     if not df_sym.empty:
-                        process_stock_data(symbol, df_sym, strategy_type)
+                        signal = process_stock_data(symbol, df_sym, strategy_type)
+                        if signal:
+                            signals_found_count += 1
                         
                 except Exception as e:
                     pass
@@ -214,8 +215,8 @@ def scan_stocks(strategy_type='all'):
 
     print("\n--- Scan Summary ---")
     print(f"Stocks Processed: {total_processed}")
-    print(f"Stocks w/o Data:  {len(symbols) - total_processed}") # This is an approximation, better to track explicitly
-    print(f"Signals Found:    N/A (needs explicit tracking in process_stock_data)") # This needs to be tracked
+    print(f"Stocks w/o Data:  {len(symbols) - total_processed}") 
+    print(f"Signals Found:    {signals_found_count}")
     print("--------------------")
     print("Check the Dashboard for results.")
 
