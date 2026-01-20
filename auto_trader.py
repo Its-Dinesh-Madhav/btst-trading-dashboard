@@ -61,26 +61,29 @@ def job():
             for cand in candidates:
                 # Add to buffer if not already present
                 if not any(b['symbol'] == cand['symbol'] for b in signal_buffer):
+                    cand['added_at'] = datetime.now()
                     signal_buffer.append(cand)
-                    print(f"Added {cand['symbol']} to buffer. Score: {cand['score']:.2f}")
+                    print(f"Added {cand['symbol']} to buffer (at {cand['added_at'].strftime('%H:%M')}). Score: {cand['score']:.2f}")
         
         # 5. Buffer Logic
-        # "wait for 2-3 signals and then select the best stock"
-        # We also need a timeout or max wait, otherwise we might wait forever if only 1 signal appears.
-        # Let's say: Execute if Buffer >= 3 OR (Buffer >= 1 and Wait Time > 5 mins - omitted for simplicity)
-        
+        # Condition A: Buffer satisfied (>= 2 signals)
         if len(signal_buffer) >= 2:
             print(f"Buffer satisfied ({len(signal_buffer)} >= 2). Selecting best...")
-            
-            # Execute Best
             trader.execute_best_candidate(signal_buffer)
-            
-            # Clear buffer after execution (or just remove the executed one? User said "select best stock out of them")
-            # Usually we clear buffer to restart cycle.
             signal_buffer = []
+
+        # Condition B: Timeout Logic (Force execute if waiting > 15 mins)
+        elif len(signal_buffer) == 1:
+            elapsed_min = (datetime.now() - signal_buffer[0]['added_at']).total_seconds() / 60
+            if elapsed_min > 15:
+                print(f"⏰ Timeout reached ({elapsed_min:.1f}m > 15m). Force executing single candidate.")
+                trader.execute_best_candidate(signal_buffer)
+                signal_buffer = []
+            else:
+                print(f"Waiting for more signals... ({len(signal_buffer)}/2) - Waiting for {elapsed_min:.1f}m")
+        
         else:
-            if len(signal_buffer) > 0:
-                print(f"Waiting for more signals... ({len(signal_buffer)}/2)")
+             print("Waiting for signals...")
 
         logging.info("Cycle Completed.")
         
