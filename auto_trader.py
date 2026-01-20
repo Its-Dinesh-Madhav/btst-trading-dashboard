@@ -1,6 +1,6 @@
 import time
 import schedule
-from scanner import scan_market
+from scanner import scan_stocks as scan_market
 from paper_trader import PaperTrader
 import sys
 import logging
@@ -40,7 +40,8 @@ def job():
             return
 
         # 3. Scan for New Signals (Trigger DB Update)
-        scan_market(strategy_type="standard", save_to_db=True)
+        # scan_stocks saves to DB automatically
+        scan_market(strategy_type="standard")
         
         # 4. Fetch Fresh Signals (Last 5 mins)
         from database import get_recent_signals
