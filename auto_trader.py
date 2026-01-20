@@ -46,7 +46,11 @@ def job():
         
         # 4. Fetch Fresh Signals (Last 5 mins)
         # 4. Fetch Fresh Signals (Last 5 mins)
-        recent_signals = get_recent_signals(limit=20)
+        recent_signals = get_recent_signals(limit=50) # Increased limit to ensure we find today's
+        
+        # Filter: ONLY Today's Signals
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        recent_signals = [s for s in recent_signals if s['signal_date'] == today_str]
         
         # Collect signals that are RECENT (e.g., within last 2 minutes)
         # to avoid processing old signals repeatedly.
